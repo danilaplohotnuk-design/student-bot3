@@ -21,41 +21,38 @@ const BASE_URL = process.env.RENDER_EXTERNAL_URL || process.env.WEBAPP_URL || `h
 const WEBAPP_URL = process.env.WEBAPP_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'change-me';
 const BOT_TOKEN = process.env.BOT_TOKEN;
+const RUN_BOT = Boolean(BOT_TOKEN);
 
-if (!BOT_TOKEN) {
-  console.error('BOT_TOKEN не заданий. Додай у .env або в змінні середовища хостингу.');
-  process.exit(1);
+let bot = null;
+if (RUN_BOT) {
+  bot = new Telegraf(BOT_TOKEN);
+  // Команда /start
+  bot.start(async (ctx) => {
+    const text = 'Привіт! Це розклад занять. Натисни кнопку, щоб відкрити веб-додаток.';
+    const isHttps = WEBAPP_URL.startsWith('https://');
+    try {
+      if (isHttps) {
+        await ctx.reply(text, Markup.inlineKeyboard([
+          Markup.button.webApp('Відкрити розклад', WEBAPP_URL)
+        ]));
+      } else {
+        await ctx.reply(text + '\n\n(Кнопка зʼявиться після деплою на HTTPS.)');
+      }
+    } catch (err) {
+      console.error('Помилка відправки повідомлення бота:', err.message || err);
+      try { await ctx.reply(text); } catch (_) {}
+    }
+  });
 }
 
-const bot = new Telegraf(BOT_TOKEN);
-const USE_WEBHOOK = BASE_URL.startsWith('https://');
-
-// Команда /start
-bot.start(async (ctx) => {
-  const text = 'Привіт! Це розклад занять. Натисни кнопку, щоб відкрити веб-додаток.';
-  const isHttps = WEBAPP_URL.startsWith('https://');
-  try {
-    if (isHttps) {
-      await ctx.reply(text, Markup.inlineKeyboard([
-        Markup.button.webApp('Відкрити розклад', WEBAPP_URL)
-      ]));
-    } else {
-      await ctx.reply(text + '\n\n(Кнопка зʼявиться після деплою на HTTPS.)');
-    }
-  } catch (err) {
-    console.error('Помилка відправки повідомлення бота:', err.message || err);
-    try { await ctx.reply(text); } catch (_) {}
-  }
-});
-
-// Webhook для хмарного хостингу (обробляти до express.json())
-if (USE_WEBHOOK) {
+const USE_WEBHOOK = RUN_BOT && BASE_URL.startsWith('https://');
+if (RUN_BOT && USE_WEBHOOK) {
   app.use(bot.webhookCallback('/webhook'));
 }
-
-// Коректне завершення (лише для polling)
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+if (RUN_BOT) {
+  process.once('SIGINT', () => bot.stop('SIGINT'));
+  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+}
 
 // --------- Express: фронтенд і API ---------
 app.use(express.json());
@@ -139,7 +136,9 @@ app.post('/api/admin/schedule/delete', requireAdmin, (req, res) => {
 // --------- Старт сервера ---------
 app.listen(PORT, async () => {
   console.log(`Web-сервер на порту ${PORT}`);
-  if (USE_WEBHOOK) {
+  if (!RUN_BOT) {
+    console.log('Бот не запущено (BOT_TOKEN не заданий). Тільки веб-додаток і API. Бот окремо в student-bot-telegram.');
+  } else if (USE_WEBHOOK) {
     try {
       await bot.telegram.setWebhook(`${BASE_URL}/webhook`);
       console.log('Telegram webhook встановлено:', BASE_URL + '/webhook');
@@ -150,5 +149,5 @@ app.listen(PORT, async () => {
     bot.launch().then(() => console.log('Telegram бот (polling) запущений'))
       .catch((err) => console.error('Помилка запуску бота:', err.message || err));
   }
-  if (!USE_WEBHOOK) console.log('Локально: http://localhost:' + PORT);
+  if (RUN_BOT && !USE_WEBHOOK) console.log('Локально: http://localhost:' + PORT);
 });
