@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { getScheduleByDate, schedule } from './schedule.js';
+import { getZoomLink } from './zoom-links.js';
 
 dotenv.config();
 
@@ -79,6 +80,14 @@ app.get('/api/schedule', (req, res) => {
 // (простий) GET /api/schedule/all – увесь розклад (на майбутнє)
 app.get('/api/schedule/all', (req, res) => {
   res.json({ total: schedule.length, lessons: schedule });
+});
+
+// GET /api/zoom-link?title=...&teacher=... – посилання Zoom для предмету
+app.get('/api/zoom-link', (req, res) => {
+  const title = req.query.title || '';
+  const teacher = req.query.teacher || '';
+  const url = getZoomLink(title, teacher);
+  res.json({ url: url || null });
 });
 
 // --------- API: адмін-редагування (простий варіант у памʼяті) ---------
