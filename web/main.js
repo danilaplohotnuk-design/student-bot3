@@ -123,10 +123,22 @@ async function openOrCopyZoomLink(card) {
     const data = await res.json();
     if (data.url) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(data.url);
-        showToast('Посилання скопійовано');
+        try {
+          await navigator.clipboard.writeText(data.url);
+          showToast('Посилання скопійовано');
+        } catch (_) {}
       }
-      window.open(data.url, '_blank');
+      // Комп і телефон: у Telegram (WebView) — openLink відкриває у зовнішньому браузері; у звичайному браузері — window.open
+      let opened = false;
+      if (tg && tg.openLink) {
+        try {
+          tg.openLink(data.url);
+          opened = true;
+        } catch (_) {}
+      }
+      if (!opened) {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      }
     } else {
       showToast('Посилання для цього предмету немає');
     }
