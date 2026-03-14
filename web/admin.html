@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <title>Адмін · Розклад</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Адмін-панель розкладу</h1>
+    </header>
+
+    <section id="admin-auth">
+      <label for="admin-password">Адмін-пароль</label>
+      <input type="password" id="admin-password" />
+      <button id="admin-login-btn">Увійти</button>
+      <p id="admin-status"></p>
+    </section>
+
+    <section id="admin-form" style="display:none; margin-top: 20px;">
+      <h2>Додати пару</h2>
+      <div class="form-grid">
+        <input type="date" id="date" />
+        <input type="time" id="startTime" />
+        <input type="time" id="endTime" />
+        <input type="text" id="title" placeholder="Назва предмету" />
+        <input type="text" id="teacher" placeholder="Викладач (необовʼязково)" />
+        <input type="text" id="building" placeholder="Корпус" />
+        <input type="text" id="room" placeholder="Аудиторія" />
+      </div>
+      <button id="add-lesson-btn">Зберегти пару</button>
+      <p id="admin-message"></p>
+    </section>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
+
