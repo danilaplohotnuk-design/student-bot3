@@ -3,26 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <title>Розклад занять</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0c0f1a" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <link rel="stylesheet" href="../styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
-    <header>
-      <h1>Розклад занять</h1>
-      <p id="date-label"></p>
-      <input type="date" id="date-input" />
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="app-header-inner">
+        <h1 class="app-title">Розклад</h1>
+        <p class="app-subtitle" id="date-label">Оберіть дату</p>
+      </div>
     </header>
 
-    <main id="schedule"></main>
+    <section class="date-section">
+      <div class="date-picker-wrap">
+        <label for="date-input" class="date-label">Дата</label>
+        <input type="date" id="date-input" class="date-input" />
+      </div>
+      <button type="button" id="today-btn" class="btn-today">Сьогодні</button>
+    </section>
 
-    <footer>
-      <p>Телеграм-додаток для студентів</p>
+    <main id="schedule" class="schedule-list"></main>
+
+    <footer class="app-footer">
+      <span class="app-footer-text">Розклад для студентів</span>
     </footer>
   </div>
 
   <script src="main.js"></script>
 </body>
 </html>
-

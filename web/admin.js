@@ -11,13 +11,13 @@ let adminPassword = '';
 loginBtn.addEventListener('click', () => {
   const value = passwordInput.value.trim();
   if (!value) {
-    statusEl.textContent = 'Введи пароль.';
-    statusEl.style.color = '#f97373';
+    statusEl.textContent = 'Введіть пароль.';
+    statusEl.className = 'admin-status error';
     return;
   }
   adminPassword = value;
-  statusEl.textContent = 'Пароль прийнято. Можна редагувати.';
-  statusEl.style.color = '#22c55e';
+  statusEl.textContent = 'Успішно. Можна додавати пари.';
+  statusEl.className = 'admin-status success';
   adminForm.style.display = 'block';
 });
 
@@ -33,8 +33,8 @@ const addBtn = document.getElementById('add-lesson-btn');
 addBtn.addEventListener('click', async () => {
   msgEl.textContent = '';
   if (!adminPassword) {
-    msgEl.textContent = 'Спочатку введи адмін-пароль вище.';
-    msgEl.style.color = '#f97373';
+    msgEl.textContent = 'Спочатку введіть адмін-пароль вище.';
+    msgEl.className = 'admin-message error';
     return;
   }
 
@@ -50,8 +50,8 @@ addBtn.addEventListener('click', async () => {
   };
 
   if (!body.date || !body.startTime || !body.endTime || !body.title || !body.building || !body.room) {
-    msgEl.textContent = 'Заповни всі обовʼязкові поля.';
-    msgEl.style.color = '#f97373';
+    msgEl.textContent = 'Заповніть усі обовʼязкові поля.';
+    msgEl.className = 'admin-message error';
     return;
   }
 
@@ -67,14 +67,14 @@ addBtn.addEventListener('click', async () => {
     const data = await res.json();
     if (!res.ok || !data.ok) {
       msgEl.textContent = data.error || 'Помилка збереження.';
-      msgEl.style.color = '#f97373';
+      msgEl.className = 'admin-message error';
     } else {
       msgEl.textContent = 'Пару додано.';
-      msgEl.style.color = '#22c55e';
+      msgEl.className = 'admin-message success';
     }
   } catch (e) {
     msgEl.textContent = 'Помилка мережі.';
-    msgEl.style.color = '#f97373';
+    msgEl.className = 'admin-message error';
   }
 });
 

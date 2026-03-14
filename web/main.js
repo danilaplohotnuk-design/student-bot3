@@ -1,5 +1,3 @@
-// web/main.js
-
 const tg = window.Telegram?.WebApp;
 
 if (tg) {
@@ -15,71 +13,86 @@ function todayISO() {
 
 const dateInput = document.getElementById('date-input');
 const dateLabel = document.getElementById('date-label');
+const todayBtn = document.getElementById('today-btn');
 const scheduleContainer = document.getElementById('schedule');
 
+function setDateLabel(dateStr) {
+  const d = new Date(dateStr);
+  const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+  dateLabel.textContent = d.toLocaleDateString('uk-UA', options);
+}
+
 async function loadSchedule(date) {
-  scheduleContainer.innerHTML = '<p class="loading">Завантаження розкладу...</p>';
+  scheduleContainer.innerHTML = `
+    <div class="state-message">
+      Завантаження
+      <div class="loading-dots"><span></span><span></span><span></span></div>
+    </div>
+  `;
   try {
     const res = await fetch(`/api/schedule?date=${encodeURIComponent(date)}`);
-    if (!res.ok) {
-      throw new Error('Помилка завантаження');
-    }
+    if (!res.ok) throw new Error('Помилка завантаження');
     const data = await res.json();
     renderSchedule(data.date, data.lessons || []);
   } catch (err) {
-    scheduleContainer.innerHTML = '<p class="error">Не вдалося завантажити розклад</p>';
+    scheduleContainer.innerHTML = '<p class="state-message error">Не вдалося завантажити розклад</p>';
     console.error(err);
   }
 }
 
 function renderSchedule(date, lessons) {
-  const niceDate = new Date(date);
-  const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
-  dateLabel.textContent = `Дата: ${niceDate.toLocaleDateString('uk-UA', options)}`;
+  setDateLabel(date);
 
   if (!lessons.length) {
-    scheduleContainer.innerHTML = '<p class="empty">На цю дату пар немає</p>';
+    scheduleContainer.innerHTML = '<p class="state-message empty">На цю дату пар немає</p>';
     return;
   }
 
   scheduleContainer.innerHTML = '';
-  for (const lesson of lessons) {
+  lessons.forEach((lesson) => {
     const card = document.createElement('div');
     card.className = 'lesson-card';
 
     const title = document.createElement('h2');
+    title.className = 'lesson-title';
     title.textContent = lesson.title;
 
-    const time = document.createElement('p');
-    time.className = 'time';
+    const meta = document.createElement('div');
+    meta.className = 'lesson-meta';
+
+    const time = document.createElement('div');
+    time.className = 'lesson-time';
     time.textContent = `${lesson.startTime} — ${lesson.endTime}`;
-
-    const place = document.createElement('p');
-    place.className = 'place';
-    place.textContent = `Корпус ${lesson.building}, ауд. ${lesson.room}`;
-
-    card.appendChild(title);
-    card.appendChild(time);
+    meta.appendChild(time);
 
     if (lesson.teacher) {
-      const teacher = document.createElement('p');
-      teacher.className = 'teacher';
+      const teacher = document.createElement('div');
+      teacher.className = 'lesson-teacher';
       teacher.textContent = lesson.teacher;
-      card.appendChild(teacher);
+      meta.appendChild(teacher);
     }
 
-    card.appendChild(place);
+    const place = document.createElement('div');
+    place.className = 'lesson-place';
+    place.textContent = `Корпус ${lesson.building}, ауд. ${lesson.room}`;
+    meta.appendChild(place);
+
+    card.appendChild(title);
+    card.appendChild(meta);
     scheduleContainer.appendChild(card);
-  }
+  });
 }
 
 dateInput.addEventListener('change', () => {
-  if (dateInput.value) {
-    loadSchedule(dateInput.value);
-  }
+  if (dateInput.value) loadSchedule(dateInput.value);
+});
+
+todayBtn.addEventListener('click', () => {
+  const today = todayISO();
+  dateInput.value = today;
+  loadSchedule(today);
 });
 
 const initialDate = todayISO();
 dateInput.value = initialDate;
 loadSchedule(initialDate);
-
