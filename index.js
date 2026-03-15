@@ -1,7 +1,7 @@
 // index.js — сервер + Telegram бот (локально polling, на хмарі webhook)
 
 import express from 'express';
-import { Telegraf, Markup } from 'telegraf';
+import { Telegraf } from 'telegraf';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -29,18 +29,13 @@ const RUN_BOT = Boolean(BOT_TOKEN);
 let bot = null;
 if (RUN_BOT) {
   bot = new Telegraf(BOT_TOKEN);
-  // Команда /start
+  // Команда /start — тільки текст, без інлайн-кнопки; відкрити розклад — кнопка меню Telegram
   bot.start(async (ctx) => {
-    const text = 'Привіт! Це розклад занять. Натисни кнопку, щоб відкрити веб-додаток.';
-    const isHttps = WEBAPP_URL.startsWith('https://');
+    const text = WEBAPP_URL.startsWith('https://')
+      ? 'Привіт! Це розклад занять. Натисни кнопку меню зверху, щоб відкрити веб-додаток.'
+      : 'Привіт! Це розклад занять. Кнопка меню зʼявиться після деплою на HTTPS.';
     try {
-      if (isHttps) {
-        await ctx.reply(text, Markup.inlineKeyboard([
-          Markup.button.webApp('Відкрити розклад', WEBAPP_URL)
-        ]));
-      } else {
-        await ctx.reply(text + '\n\n(Кнопка зʼявиться після деплою на HTTPS.)');
-      }
+      await ctx.reply(text);
     } catch (err) {
       console.error('Помилка відправки повідомлення бота:', err.message || err);
       try { await ctx.reply(text); } catch (_) {}
@@ -204,6 +199,18 @@ app.listen(PORT, async () => {
       allowedUpdates: ['message', 'my_chat_member'],
     }).then(() => console.log('Telegram бот (polling) запущений'))
       .catch((err) => console.error('Помилка запуску бота:', err.message || err));
+  }
+  if (RUN_BOT && WEBAPP_URL.startsWith('https://')) {
+    try {
+      await bot.telegram.setChatMenuButton({
+        type: 'web_app',
+        text: 'Відкрити розклад',
+        web_app: { url: WEBAPP_URL },
+      });
+      console.log('Кнопка меню Telegram встановлена (приватний чат)');
+    } catch (err) {
+      console.error('Помилка встановлення кнопки меню:', err.message || err);
+    }
   }
   if (RUN_BOT && !USE_WEBHOOK) console.log('Локально: http://localhost:' + PORT);
 });
