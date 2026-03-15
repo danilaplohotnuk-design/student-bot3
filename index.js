@@ -46,6 +46,32 @@ if (RUN_BOT) {
       try { await ctx.reply(text); } catch (_) {}
     }
   });
+
+  // Коли бота додають в групу — встановити кнопку меню Telegram «Відкрити розклад»
+  bot.on('my_chat_member', async (ctx) => {
+    const update = ctx.myChatMember;
+    if (!update) return;
+    const newStatus = update.new_chat_member?.status;
+    const oldStatus = update.old_chat_member?.status;
+    const isAdded = (newStatus === 'member' || newStatus === 'administrator') &&
+      (oldStatus === 'left' || oldStatus === 'kicked' || oldStatus === undefined);
+    if (!isAdded) return;
+    const chatId = update.chat.id;
+    const isGroup = update.chat.type === 'group' || update.chat.type === 'supergroup';
+    if (!isGroup || !WEBAPP_URL.startsWith('https://')) return;
+    const botId = ctx.botInfo?.id;
+    const addedUserId = update.new_chat_member?.user?.id;
+    if (botId != null && addedUserId !== botId) return;
+    try {
+      await ctx.telegram.setChatMenuButton(chatId, {
+        type: 'web_app',
+        text: 'Відкрити розклад',
+        web_app: { url: WEBAPP_URL },
+      });
+    } catch (err) {
+      console.error('Помилка встановлення кнопки меню в групі:', err.message || err);
+    }
+  });
 }
 
 const USE_WEBHOOK = RUN_BOT && BASE_URL.startsWith('https://');
@@ -166,13 +192,17 @@ app.listen(PORT, async () => {
     console.log('Бот не запущено (BOT_TOKEN не заданий). Тільки веб-додаток і API. Бот окремо в student-bot-telegram.');
   } else if (USE_WEBHOOK) {
     try {
-      await bot.telegram.setWebhook(`${BASE_URL}/webhook`);
+      await bot.telegram.setWebhook(`${BASE_URL}/webhook`, {
+        allowed_updates: ['message', 'my_chat_member'],
+      });
       console.log('Telegram webhook встановлено:', BASE_URL + '/webhook');
     } catch (err) {
       console.error('Помилка встановлення webhook:', err.message || err);
     }
   } else {
-    bot.launch().then(() => console.log('Telegram бот (polling) запущений'))
+    bot.launch({
+      allowedUpdates: ['message', 'my_chat_member'],
+    }).then(() => console.log('Telegram бот (polling) запущений'))
       .catch((err) => console.error('Помилка запуску бота:', err.message || err));
   }
   if (RUN_BOT && !USE_WEBHOOK) console.log('Локально: http://localhost:' + PORT);
