@@ -67,11 +67,51 @@ function getLuminanceForColor(hex) {
   return rgb ? getLuminanceFromRgb(rgb.r, rgb.g, rgb.b) : 0;
 }
 
+function rgbToHex(r, g, b) {
+  const pad = (n) => String(Math.round(Math.max(0, Math.min(255, n))).toString(16).padStart(2, '0'));
+  return '#' + pad(r) + pad(g) + pad(b);
+}
+
+function blendHex(hex1, hex2, t) {
+  const r1 = hexToRgb(hex1);
+  const r2 = hexToRgb(hex2);
+  if (!r1 || !r2) return hex1;
+  const r = r1.r * (1 - t) + r2.r * t;
+  const g = r1.g * (1 - t) + r2.g * t;
+  const b = r1.b * (1 - t) + r2.b * t;
+  return rgbToHex(r, g, b);
+}
+
 function setTextModeByLuminance(luminance) {
   document.body.dataset.bgMode = luminance > LUMINANCE_THRESHOLD ? 'light' : 'dark';
 }
 
-function computeImageLuminance(url, done) {
+function clearAdaptiveColors() {
+  document.body.style.removeProperty('--text');
+  document.body.style.removeProperty('--text-muted');
+  document.body.style.removeProperty('--text-dim');
+  document.body.style.removeProperty('--time');
+  document.body.style.removeProperty('--accent');
+}
+
+function setAdaptiveColorsFromBg(hex, luminance) {
+  const isLight = luminance > LUMINANCE_THRESHOLD;
+  if (isLight) {
+    document.body.style.setProperty('--text', blendHex(hex, '#0a0a0f', 0.88));
+    document.body.style.setProperty('--text-muted', blendHex(hex, '#0a0a0f', 0.65));
+    document.body.style.setProperty('--text-dim', blendHex(hex, '#0a0a0f', 0.5));
+    document.body.style.setProperty('--time', blendHex(hex, '#5c2e0a', 0.4));
+    document.body.style.setProperty('--accent', blendHex('#3b82f6', hex, 0.15));
+  } else {
+    document.body.style.setProperty('--text', blendHex(hex, '#f8fafc', 0.92));
+    document.body.style.setProperty('--text-muted', blendHex(hex, '#e2e8f0', 0.75));
+    document.body.style.setProperty('--text-dim', blendHex(hex, '#94a3b8', 0.7));
+    document.body.style.setProperty('--time', blendHex(hex, '#fde047', 0.3));
+    document.body.style.setProperty('--accent', blendHex('#93c5fd', hex, 0.2));
+  }
+}
+
+function computeImageLuminanceAndColor(url, done) {
   const img = new Image();
   img.crossOrigin = 'anonymous';
   img.onload = () => {
@@ -83,19 +123,24 @@ function computeImageLuminance(url, done) {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, size, size);
       const data = ctx.getImageData(0, 0, size, size).data;
-      let sum = 0;
+      let sumLum = 0;
+      let r = 0, g = 0, b = 0;
       let count = 0;
       for (let i = 0; i < data.length; i += 4) {
-        sum += getLuminanceFromRgb(data[i], data[i + 1], data[i + 2]);
+        sumLum += getLuminanceFromRgb(data[i], data[i + 1], data[i + 2]);
+        r += data[i];
+        g += data[i + 1];
+        b += data[i + 2];
         count += 1;
       }
-      const avg = count ? sum / count : 0;
-      done(avg);
+      const avgLum = count ? sumLum / count : 0;
+      const avgHex = count ? rgbToHex(r / count, g / count, b / count) : '#0f1320';
+      done(avgLum, avgHex);
     } catch (_) {
-      done(0);
+      done(0, '#0f1320');
     }
   };
-  img.onerror = () => done(0);
+  img.onerror = () => done(0, '#0f1320');
   img.src = url;
 }
 
@@ -103,6 +148,7 @@ function applyBackground(prefs) {
   const b = document.body.style;
   if (!prefs) {
     document.body.removeAttribute('data-bg-mode');
+    clearAdaptiveColors();
     b.background = '';
     b.backgroundImage = '';
     b.backgroundSize = '';
@@ -118,14 +164,19 @@ function applyBackground(prefs) {
     b.backgroundAttachment = '';
     const lum = getLuminanceForColor(prefs.value);
     setTextModeByLuminance(lum);
+    setAdaptiveColorsFromBg(prefs.value, lum);
   } else {
     b.background = '#0f1320';
     b.backgroundImage = `url(${prefs.value})`;
     b.backgroundSize = 'cover';
     b.backgroundPosition = 'center';
     b.backgroundAttachment = 'fixed';
+    clearAdaptiveColors();
     setTextModeByLuminance(0);
-    computeImageLuminance(prefs.value, (lum) => setTextModeByLuminance(lum));
+    computeImageLuminanceAndColor(prefs.value, (lum, avgHex) => {
+      setTextModeByLuminance(lum);
+      setAdaptiveColorsFromBg(avgHex, lum);
+    });
   }
 }
 
