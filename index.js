@@ -65,6 +65,11 @@ app.use(express.static(path.join(__dirname, 'web')));
 
 // --------- API: розклад ---------
 
+// GET /api/health — для cron-job.org (keep-alive / перевірка доступності)
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ ok: true });
+});
+
 // GET /api/schedule?date=YYYY-MM-DD  – розклад на конкретну дату
 app.get('/api/schedule', (req, res) => {
   const { date } = req.query;
