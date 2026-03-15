@@ -1,4 +1,4 @@
-// server/schedule.js
+// schedule.js — масив пар та getScheduleByDate
 
 export const schedule = [
   // приклади (сюди можна вставити весь великий масив з попереднього повідомлення)
