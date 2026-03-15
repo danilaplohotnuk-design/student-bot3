@@ -79,6 +79,12 @@ app.get('/api/schedule/all', (req, res) => {
   res.json({ total: schedule.length, lessons: schedule });
 });
 
+// GET /api/schedule/subjects – унікальні назви предметів (для форми зміни пари)
+app.get('/api/schedule/subjects', (req, res) => {
+  const titles = [...new Set(schedule.map((l) => l.title))].sort();
+  res.json({ subjects: titles });
+});
+
 // GET /api/zoom-link?title=...&teacher=... – посилання Zoom для предмету
 app.get('/api/zoom-link', (req, res) => {
   const title = req.query.title || '';
@@ -97,6 +103,11 @@ function requireAdmin(req, res, next) {
   }
   next();
 }
+
+// Перевірка пароля (для форми зміни пари в додатку)
+app.get('/api/admin/check', requireAdmin, (req, res) => {
+  res.json({ ok: true });
+});
 
 // Додати пару
 app.post('/api/admin/schedule/add', requireAdmin, (req, res) => {
