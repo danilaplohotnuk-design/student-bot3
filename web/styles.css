@@ -1,8 +1,8 @@
 /* === Variables (матове скло / glassmorphism) === */
 :root {
   --bg: #0f1320;
-  --bg-card: rgba(255, 255, 255, 0.06);
-  --bg-card-hover: rgba(255, 255, 255, 0.09);
+  --bg-card: rgba(255, 255, 255, 0.05);
+  --bg-card-hover: rgba(255, 255, 255, 0.08);
   --glass-blur: 12px;
   --glass-blur-strong: 20px;
   --border: rgba(255, 255, 255, 0.1);
@@ -641,13 +641,13 @@ body.admin-page .app-shell {
   margin-bottom: 0;
 }
 
-/* Режим світлого фону: темний текст для кращої читабельності */
+/* Режим світлого фону: темний текст + матове скло (напівпрозорі панелі з blur) */
 body[data-bg-mode="light"] {
   --text: #0f172a;
   --text-muted: #475569;
   --text-dim: #64748b;
-  --bg-card: rgba(255, 255, 255, 0.85);
-  --bg-card-hover: rgba(255, 255, 255, 0.92);
+  --bg-card: rgba(255, 255, 255, 0.5);
+  --bg-card-hover: rgba(255, 255, 255, 0.62);
   --border: rgba(0, 0, 0, 0.12);
   --border-light: rgba(0, 0, 0, 0.18);
   --accent-soft: rgba(59, 130, 246, 0.2);
@@ -660,7 +660,9 @@ body[data-bg-mode="light"] {
 body[data-bg-mode="light"] .date-input,
 body[data-bg-mode="light"] .btn-quick,
 body[data-bg-mode="light"] .btn-bg {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   border-color: rgba(0, 0, 0, 0.12);
   color: var(--text);
 }
@@ -668,27 +670,35 @@ body[data-bg-mode="light"] .btn-quick {
   color: var(--accent);
 }
 body[data-bg-mode="light"] .zoom-toast {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
   border-color: var(--border-light);
   color: var(--text);
 }
 body[data-bg-mode="light"] .modal-box {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
   border-color: var(--border-light);
 }
 body[data-bg-mode="light"] .modal-input,
 body[data-bg-mode="light"] .modal-select {
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-color: var(--border);
   color: var(--text);
 }
 body[data-bg-mode="light"] .modal-btn-cancel,
 body[data-bg-mode="light"] .modal-btn-secondary {
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: var(--text);
   border-color: var(--border);
 }
 body[data-bg-mode="light"] .modal-btn-cancel:hover,
 body[data-bg-mode="light"] .modal-btn-secondary:hover {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.5);
 }
