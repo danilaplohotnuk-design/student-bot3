@@ -426,7 +426,6 @@ function openChoiceModalAfterPassword(lessonOrNull) {
         <button type="button" class="modal-btn modal-btn-primary modal-choice-btn" data-action="add">Додати / змінити пару</button>
         ${lessonOrNull ? '<button type="button" class="modal-btn modal-btn-danger modal-choice-btn" data-action="delete">Видалити цю пару</button>' : ''}
         <button type="button" class="modal-btn modal-btn-secondary modal-choice-btn" data-action="restore">Відновити весь розклад</button>
-        <button type="button" class="modal-btn modal-btn-secondary modal-choice-btn" data-action="background">Змінити фон</button>
       </div>
       <div class="modal-actions">
         <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Закрити</button>
@@ -450,9 +449,6 @@ function openChoiceModalAfterPassword(lessonOrNull) {
     } else if (action === 'restore') {
       closeModals();
       confirmRestoreSchedule();
-    } else if (action === 'background') {
-      closeModals();
-      openBackgroundModal();
     }
   });
 }
@@ -698,3 +694,5 @@ applyBackground(getStoredBackground());
 const initialDate = todayISO();
 dateInput.value = initialDate;
 loadSchedule(initialDate);
+
+document.getElementById('bg-btn').addEventListener('click', () => openBackgroundModal());
