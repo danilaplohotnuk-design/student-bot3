@@ -35,6 +35,140 @@ let zoomPendingTimer = null;
 const LONG_PRESS_MOVE_THRESHOLD_PX = 12;
 let longPressState = null;
 
+// --------- Фон: колір або зображення (localStorage) ---------
+const BG_STORAGE_KEY = 'schedule_app_bg';
+
+function getStoredBackground() {
+  try {
+    const raw = localStorage.getItem(BG_STORAGE_KEY);
+    if (!raw) return null;
+    const prefs = JSON.parse(raw);
+    if (prefs && (prefs.type === 'color' || prefs.type === 'image') && prefs.value) return prefs;
+  } catch (_) {}
+  return null;
+}
+
+function applyBackground(prefs) {
+  const b = document.body.style;
+  if (!prefs) {
+    b.background = '';
+    b.backgroundImage = '';
+    b.backgroundSize = '';
+    b.backgroundPosition = '';
+    b.backgroundAttachment = '';
+    return;
+  }
+  if (prefs.type === 'color') {
+    b.background = prefs.value;
+    b.backgroundImage = 'none';
+    b.backgroundSize = '';
+    b.backgroundPosition = '';
+    b.backgroundAttachment = '';
+  } else {
+    b.background = '#0f1320';
+    b.backgroundImage = `url(${prefs.value})`;
+    b.backgroundSize = 'cover';
+    b.backgroundPosition = 'center';
+    b.backgroundAttachment = 'fixed';
+  }
+}
+
+function openBackgroundModal() {
+  closeModals();
+  const stored = getStoredBackground();
+  const overlay = document.createElement('div');
+  overlay.id = 'schedule-modal-overlay';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box modal-form">
+      <h3 class="modal-title">Фон екрана</h3>
+      <p class="modal-hint">Оберіть колір або вставте посилання на зображення</p>
+      <div class="bg-options">
+        <label class="modal-label">Колір</label>
+        <div class="bg-color-row">
+          <input type="color" id="modal-bg-color" value="${stored?.type === 'color' ? stored.value : '#1a1f35'}" class="modal-color-input" />
+          <input type="text" id="modal-bg-color-hex" class="modal-input modal-input-inline" placeholder="#1a1f35" maxlength="7" value="${stored?.type === 'color' ? stored.value : ''}" />
+        </div>
+        <label class="modal-label" style="margin-top:16px">Зображення (URL)</label>
+        <input type="url" id="modal-bg-image" class="modal-input" placeholder="https://..." value="${stored?.type === 'image' ? stored.value : ''}" />
+      </div>
+      <p id="modal-bg-error" class="modal-error" style="display:none;"></p>
+      <div class="modal-actions" style="margin-top:20px">
+        <button type="button" class="modal-btn modal-btn-secondary" data-action="reset-bg">Скинути</button>
+        <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
+        <button type="button" class="modal-btn modal-btn-primary" data-action="save-bg">Застосувати</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const colorInput = overlay.querySelector('#modal-bg-color');
+  const hexInput = overlay.querySelector('#modal-bg-color-hex');
+  const imageInput = overlay.querySelector('#modal-bg-image');
+  const errorEl = overlay.querySelector('#modal-bg-error');
+
+  const syncColorToHex = () => {
+    hexInput.value = colorInput.value;
+  };
+  const syncHexToColor = () => {
+    const hex = hexInput.value.trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) colorInput.value = hex;
+  };
+  colorInput.addEventListener('input', syncColorToHex);
+  hexInput.addEventListener('input', syncHexToColor);
+  hexInput.addEventListener('blur', syncHexToColor);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay || e.target.dataset.action === 'cancel') closeModals();
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    if (action === 'reset-bg') {
+      try { localStorage.removeItem(BG_STORAGE_KEY); } catch (_) {}
+      applyBackground(null);
+      closeModals();
+      showToast('Фон скинуто');
+      return;
+    }
+    if (action === 'save-bg') {
+      errorEl.style.display = 'none';
+      const imageUrl = imageInput.value.trim();
+      const colorHex = hexInput.value.trim() || colorInput.value;
+      if (imageUrl) {
+        try {
+          localStorage.setItem(BG_STORAGE_KEY, JSON.stringify({ type: 'image', value: imageUrl }));
+          applyBackground({ type: 'image', value: imageUrl });
+          closeModals();
+          showToast('Фон застосовано');
+        } catch (_) {
+          errorEl.textContent = 'Невірне посилання';
+          errorEl.style.display = 'block';
+        }
+        return;
+      }
+      if (colorHex && /^#[0-9A-Fa-f]{6}$/.test(colorHex)) {
+        try {
+          localStorage.setItem(BG_STORAGE_KEY, JSON.stringify({ type: 'color', value: colorHex }));
+          applyBackground({ type: 'color', value: colorHex });
+          closeModals();
+          showToast('Фон застосовано');
+        } catch (_) {
+          errorEl.style.display = 'block';
+        }
+        return;
+      }
+      try {
+        const hex = colorInput.value;
+        localStorage.setItem(BG_STORAGE_KEY, JSON.stringify({ type: 'color', value: hex }));
+        applyBackground({ type: 'color', value: hex });
+        closeModals();
+        showToast('Фон застосовано');
+      } catch (_) {
+        errorEl.textContent = 'Оберіть колір або введіть URL зображення';
+        errorEl.style.display = 'block';
+      }
+    }
+  });
+}
+
 function cancelLongPressIfMoved(e) {
   if (!longPressState) return;
   const x = e.touches ? e.touches[0].clientX : e.clientX;
@@ -292,6 +426,7 @@ function openChoiceModalAfterPassword(lessonOrNull) {
         <button type="button" class="modal-btn modal-btn-primary modal-choice-btn" data-action="add">Додати / змінити пару</button>
         ${lessonOrNull ? '<button type="button" class="modal-btn modal-btn-danger modal-choice-btn" data-action="delete">Видалити цю пару</button>' : ''}
         <button type="button" class="modal-btn modal-btn-secondary modal-choice-btn" data-action="restore">Відновити весь розклад</button>
+        <button type="button" class="modal-btn modal-btn-secondary modal-choice-btn" data-action="background">Змінити фон</button>
       </div>
       <div class="modal-actions">
         <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Закрити</button>
@@ -315,6 +450,9 @@ function openChoiceModalAfterPassword(lessonOrNull) {
     } else if (action === 'restore') {
       closeModals();
       confirmRestoreSchedule();
+    } else if (action === 'background') {
+      closeModals();
+      openBackgroundModal();
     }
   });
 }
@@ -554,6 +692,8 @@ tomorrowBtn.addEventListener('click', () => {
   dateInput.value = tomorrow;
   loadSchedule(tomorrow);
 });
+
+applyBackground(getStoredBackground());
 
 const initialDate = todayISO();
 dateInput.value = initialDate;
