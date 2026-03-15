@@ -25,6 +25,31 @@ const tomorrowBtn = document.getElementById('tomorrow-btn');
 const scheduleContainer = document.getElementById('schedule');
 
 let currentScheduleDate = ''; // дата відкритого розкладу (для форми зміни пари)
+
+// Захист від випадкового натискання: подвійний тап для Zoom
+const ZOOM_DOUBLE_TAP_MS = 2000;
+let zoomPendingKey = null;
+let zoomPendingTimer = null;
+
+// Довге натискання: скасувати, якщо був скрол (рух пальця/миші)
+const LONG_PRESS_MOVE_THRESHOLD_PX = 12;
+let longPressState = null;
+
+function cancelLongPressIfMoved(e) {
+  if (!longPressState) return;
+  const x = e.touches ? e.touches[0].clientX : e.clientX;
+  const y = e.touches ? e.touches[0].clientY : e.clientY;
+  const dx = x - longPressState.startX;
+  const dy = y - longPressState.startY;
+  if (dx * dx + dy * dy > LONG_PRESS_MOVE_THRESHOLD_PX * LONG_PRESS_MOVE_THRESHOLD_PX) {
+    clearTimeout(longPressState.timerId);
+    longPressState = null;
+  }
+}
+
+document.addEventListener('touchmove', cancelLongPressIfMoved, { passive: true });
+document.addEventListener('mousemove', cancelLongPressIfMoved);
+
 const TIME_SLOTS = [
   { label: '09:00–10:20', startTime: '09:00', endTime: '10:20' },
   { label: '10:40–12:00', startTime: '10:40', endTime: '12:00' },
@@ -103,7 +128,7 @@ function renderSchedule(date, lessons) {
 
     const zoomHint = document.createElement('div');
     zoomHint.className = 'lesson-zoom-hint';
-    zoomHint.textContent = 'Натисни для посилання в Zoom';
+    zoomHint.textContent = 'Натисни двічі для посилання в Zoom';
 
     card.appendChild(title);
     card.appendChild(meta);
@@ -111,31 +136,40 @@ function renderSchedule(date, lessons) {
     scheduleContainer.appendChild(card);
 
     let longPressHandled = false;
-    let longPressTimer = null;
 
     const clearLongPress = () => {
-      if (longPressTimer) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
+      if (longPressState && longPressState.card === card) {
+        clearTimeout(longPressState.timerId);
+        longPressState = null;
       }
     };
 
-    const startLongPress = () => {
+    const startLongPress = (e) => {
       longPressHandled = false;
-      longPressTimer = setTimeout(() => {
-        longPressHandled = true;
-        longPressTimer = null;
-        const lesson = {
-          date: card.dataset.date,
-          startTime: card.dataset.startTime,
-          endTime: card.dataset.endTime,
-          title: card.dataset.title,
-          teacher: card.dataset.teacher || '',
-          building: card.dataset.building || '',
-          room: card.dataset.room || '',
-        };
-        openPasswordModal(lesson);
-      }, 500);
+      clearLongPress();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const lesson = {
+        date: card.dataset.date,
+        startTime: card.dataset.startTime,
+        endTime: card.dataset.endTime,
+        title: card.dataset.title,
+        teacher: card.dataset.teacher || '',
+        building: card.dataset.building || '',
+        room: card.dataset.room || '',
+      };
+      longPressState = {
+        card,
+        startX: clientX,
+        startY: clientY,
+        timerId: setTimeout(() => {
+          if (longPressState && longPressState.card === card) {
+            longPressState = null;
+            longPressHandled = true;
+            openPasswordModal(lesson);
+          }
+        }, 500),
+      };
     };
 
     card.addEventListener('click', (e) => {
@@ -144,13 +178,27 @@ function renderSchedule(date, lessons) {
         e.stopPropagation();
         return;
       }
-      openOrCopyZoomLink(card);
+      const key = `${card.dataset.date}|${card.dataset.startTime}|${card.dataset.title}`;
+      if (zoomPendingKey === key && zoomPendingTimer !== null) {
+        clearTimeout(zoomPendingTimer);
+        zoomPendingTimer = null;
+        zoomPendingKey = null;
+        openOrCopyZoomLink(card);
+        return;
+      }
+      if (zoomPendingTimer) clearTimeout(zoomPendingTimer);
+      zoomPendingKey = key;
+      showToast('Натисніть ще раз для посилання в Zoom');
+      zoomPendingTimer = setTimeout(() => {
+        zoomPendingTimer = null;
+        zoomPendingKey = null;
+      }, ZOOM_DOUBLE_TAP_MS);
     });
 
-    card.addEventListener('touchstart', (e) => { startLongPress(); }, { passive: true });
+    card.addEventListener('touchstart', (e) => { startLongPress(e); }, { passive: true });
     card.addEventListener('touchend', clearLongPress);
     card.addEventListener('touchcancel', clearLongPress);
-    card.addEventListener('mousedown', () => startLongPress());
+    card.addEventListener('mousedown', (e) => startLongPress(e));
     card.addEventListener('mouseup', clearLongPress);
     card.addEventListener('mouseleave', clearLongPress);
   });
