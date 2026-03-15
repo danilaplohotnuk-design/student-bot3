@@ -36,14 +36,17 @@ if (RUN_BOT) {
     const isHttps = WEBAPP_URL.startsWith('https://');
     if (isPrivate && isHttps) {
       try {
-        await ctx.telegram.setChatMenuButton(ctx.chat.id, {
-          type: 'web_app',
-          text: 'Відкрити розклад',
-          web_app: { url: WEBAPP_URL },
+        await ctx.telegram.setChatMenuButton({
+          chatId: ctx.chat.id,
+          menuButton: {
+            type: 'web_app',
+            text: 'Відкрити розклад',
+            web_app: { url: WEBAPP_URL },
+          },
         });
         console.log('Кнопка меню встановлена для чату', ctx.chat.id, '→ Відкрити розклад');
       } catch (err) {
-        console.error('Помилка встановлення кнопки меню (перевір BotFather → Menu Button та домен Web App):', err.message || err);
+        console.error('Помилка встановлення кнопки меню:', err.message || err);
       }
     }
     const text = isHttps
@@ -73,10 +76,13 @@ if (RUN_BOT) {
     const addedUserId = update.new_chat_member?.user?.id;
     if (botId != null && addedUserId !== botId) return;
     try {
-      await ctx.telegram.setChatMenuButton(chatId, {
-        type: 'web_app',
-        text: 'Відкрити розклад',
-        web_app: { url: WEBAPP_URL },
+      await ctx.telegram.setChatMenuButton({
+        chatId,
+        menuButton: {
+          type: 'web_app',
+          text: 'Відкрити розклад',
+          web_app: { url: WEBAPP_URL },
+        },
       });
     } catch (err) {
       console.error('Помилка встановлення кнопки меню в групі:', err.message || err);
@@ -218,11 +224,13 @@ app.listen(PORT, async () => {
   if (RUN_BOT && WEBAPP_URL.startsWith('https://')) {
     try {
       await bot.telegram.setChatMenuButton({
-        type: 'web_app',
-        text: 'Відкрити розклад',
-        web_app: { url: WEBAPP_URL },
+        menuButton: {
+          type: 'web_app',
+          text: 'Відкрити розклад',
+          web_app: { url: WEBAPP_URL },
+        },
       });
-      console.log('Кнопка меню Telegram встановлена (приватний чат)');
+      console.log('Кнопка меню Telegram встановлена (за замовчуванням)');
     } catch (err) {
       console.error('Помилка встановлення кнопки меню:', err.message || err);
     }
