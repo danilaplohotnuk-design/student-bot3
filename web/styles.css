@@ -72,30 +72,44 @@ body {
 
 /* === Date section === */
 .date-section {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 8px 10px;
+  align-items: end;
   margin-bottom: 24px;
 }
 
 .date-picker-wrap {
-  flex: 1;
+  grid-column: 1;
+  grid-row: 1 / 3;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
+}
+
+.date-quick-btns {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: end;
 }
 
 @media (max-width: 420px) {
   .date-section {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 6px 0;
   }
 
   .date-picker-wrap {
-    flex: none;
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .date-quick-btns {
-    flex-wrap: wrap;
+    grid-column: 1;
+    grid-row: 2;
     width: 100%;
   }
 
@@ -110,7 +124,7 @@ body {
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--text-muted);
-  margin-bottom: 6px;
+  margin-bottom: 0;
 }
 
 .date-input {
@@ -641,19 +655,20 @@ body.admin-page .app-shell {
   margin-bottom: 0;
 }
 
-/* Режим світлого фону: темний текст + матове скло (напівпрозорі панелі з blur) */
+/* Режим світлого фону: темний текст + матове скло + м’який рефлекс по краях */
 body[data-bg-mode="light"] {
   --text: #0f172a;
   --text-muted: #475569;
   --text-dim: #64748b;
   --bg-card: rgba(255, 255, 255, 0.5);
   --bg-card-hover: rgba(255, 255, 255, 0.62);
-  --border: rgba(0, 0, 0, 0.12);
-  --border-light: rgba(0, 0, 0, 0.18);
+  --border: rgba(0, 0, 0, 0.06);
+  --border-light: rgba(0, 0, 0, 0.1);
   --accent-soft: rgba(59, 130, 246, 0.2);
   --time: #b45309;
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
-  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.15);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(0, 0, 0, 0.04);
   color: var(--text);
 }
 
@@ -663,42 +678,66 @@ body[data-bg-mode="light"] .btn-bg {
   background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border-color: rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: var(--glass-edge);
   color: var(--text);
 }
 body[data-bg-mode="light"] .btn-quick {
   color: var(--accent);
 }
+body[data-bg-mode="light"] .lesson-card {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-glass), var(--glass-edge);
+}
+body[data-bg-mode="light"] .lesson-card:hover {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1), var(--glass-edge);
+}
 body[data-bg-mode="light"] .zoom-toast {
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-  border-color: var(--border-light);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-glass), var(--glass-edge);
   color: var(--text);
 }
+body[data-bg-mode="light"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
 body[data-bg-mode="light"] .modal-box {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
-  border-color: var(--border-light);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-glass), var(--glass-edge);
+}
+body[data-bg-mode="light"] .modal-title,
+body[data-bg-mode="light"] .modal-hint {
+  color: var(--text);
+}
+body[data-bg-mode="light"] .modal-hint {
+  color: var(--text-muted);
 }
 body[data-bg-mode="light"] .modal-input,
 body[data-bg-mode="light"] .modal-select {
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border-color: var(--border);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: var(--glass-edge);
   color: var(--text);
 }
 body[data-bg-mode="light"] .modal-btn-cancel,
 body[data-bg-mode="light"] .modal-btn-secondary {
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--text);
-  border-color: var(--border);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: var(--glass-edge);
 }
 body[data-bg-mode="light"] .modal-btn-cancel:hover,
 body[data-bg-mode="light"] .modal-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.85);
 }
