@@ -97,17 +97,17 @@ function clearAdaptiveColors() {
 function setAdaptiveColorsFromBg(hex, luminance) {
   const isLight = luminance > LUMINANCE_THRESHOLD;
   if (isLight) {
-    document.body.style.setProperty('--text', blendHex(hex, '#0a0a0f', 0.88));
-    document.body.style.setProperty('--text-muted', blendHex(hex, '#0a0a0f', 0.65));
-    document.body.style.setProperty('--text-dim', blendHex(hex, '#0a0a0f', 0.5));
-    document.body.style.setProperty('--time', blendHex(hex, '#5c2e0a', 0.4));
-    document.body.style.setProperty('--accent', blendHex('#3b82f6', hex, 0.15));
+    document.body.style.setProperty('--text', blendHex(hex, '#0a0a0f', 0.82));
+    document.body.style.setProperty('--text-muted', blendHex(hex, '#0a0a0f', 0.59));
+    document.body.style.setProperty('--text-dim', blendHex(hex, '#0a0a0f', 0.44));
+    document.body.style.setProperty('--time', blendHex(hex, '#5c2e0a', 0.34));
+    document.body.style.setProperty('--accent', blendHex('#3b82f6', hex, 0.21));
   } else {
-    document.body.style.setProperty('--text', blendHex(hex, '#f8fafc', 0.92));
-    document.body.style.setProperty('--text-muted', blendHex(hex, '#e2e8f0', 0.75));
-    document.body.style.setProperty('--text-dim', blendHex(hex, '#94a3b8', 0.7));
-    document.body.style.setProperty('--time', blendHex(hex, '#fde047', 0.3));
-    document.body.style.setProperty('--accent', blendHex('#93c5fd', hex, 0.2));
+    document.body.style.setProperty('--text', blendHex(hex, '#f8fafc', 0.86));
+    document.body.style.setProperty('--text-muted', blendHex(hex, '#e2e8f0', 0.69));
+    document.body.style.setProperty('--text-dim', blendHex(hex, '#94a3b8', 0.64));
+    document.body.style.setProperty('--time', blendHex(hex, '#fde047', 0.24));
+    document.body.style.setProperty('--accent', blendHex('#93c5fd', hex, 0.26));
   }
 }
 
