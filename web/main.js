@@ -37,6 +37,7 @@ let longPressState = null;
 
 // --------- Фон: колір або зображення (localStorage) ---------
 const BG_STORAGE_KEY = 'schedule_app_bg';
+const LUMINANCE_THRESHOLD = 0.45; // вище = світлий фон → темний текст
 
 function getStoredBackground() {
   try {
@@ -48,9 +49,60 @@ function getStoredBackground() {
   return null;
 }
 
+function hexToRgb(hex) {
+  const m = hex.replace(/^#/, '').match(/^([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})([0-9A-Fa-f]{2})$/);
+  return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : null;
+}
+
+function getLuminanceFromRgb(r, g, b) {
+  const [rs, gs, bs] = [r, g, b].map((c) => {
+    c /= 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+function getLuminanceForColor(hex) {
+  const rgb = hexToRgb(hex);
+  return rgb ? getLuminanceFromRgb(rgb.r, rgb.g, rgb.b) : 0;
+}
+
+function setTextModeByLuminance(luminance) {
+  document.body.dataset.bgMode = luminance > LUMINANCE_THRESHOLD ? 'light' : 'dark';
+}
+
+function computeImageLuminance(url, done) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      const size = 64;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, size, size);
+      const data = ctx.getImageData(0, 0, size, size).data;
+      let sum = 0;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        sum += getLuminanceFromRgb(data[i], data[i + 1], data[i + 2]);
+        count += 1;
+      }
+      const avg = count ? sum / count : 0;
+      done(avg);
+    } catch (_) {
+      done(0);
+    }
+  };
+  img.onerror = () => done(0);
+  img.src = url;
+}
+
 function applyBackground(prefs) {
   const b = document.body.style;
   if (!prefs) {
+    document.body.removeAttribute('data-bg-mode');
     b.background = '';
     b.backgroundImage = '';
     b.backgroundSize = '';
@@ -64,12 +116,16 @@ function applyBackground(prefs) {
     b.backgroundSize = '';
     b.backgroundPosition = '';
     b.backgroundAttachment = '';
+    const lum = getLuminanceForColor(prefs.value);
+    setTextModeByLuminance(lum);
   } else {
     b.background = '#0f1320';
     b.backgroundImage = `url(${prefs.value})`;
     b.backgroundSize = 'cover';
     b.backgroundPosition = 'center';
     b.backgroundAttachment = 'fixed';
+    setTextModeByLuminance(0);
+    computeImageLuminance(prefs.value, (lum) => setTextModeByLuminance(lum));
   }
 }
 
@@ -91,6 +147,7 @@ function openBackgroundModal() {
         </div>
         <label class="modal-label" style="margin-top:16px">Зображення (URL)</label>
         <input type="url" id="modal-bg-image" class="modal-input" placeholder="https://..." value="${stored?.type === 'image' ? stored.value : ''}" />
+        <p class="modal-hint modal-hint-sm" style="margin-top:12px">Колір тексту підлаштовується під фон для кращої читабельності</p>
       </div>
       <p id="modal-bg-error" class="modal-error" style="display:none;"></p>
       <div class="modal-actions" style="margin-top:20px">
