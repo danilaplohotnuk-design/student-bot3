@@ -510,3 +510,34 @@ body.admin-page .app-shell {
 .modal-btn-primary:hover {
   background: #2563eb;
 }
+
+.modal-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.modal-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.modal-btn-danger {
+  background: var(--error);
+  color: #fff;
+}
+
+.modal-btn-danger:hover {
+  background: #dc2626;
+}
+
+.modal-choice .modal-choice-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.modal-choice .modal-choice-btn {
+  width: 100%;
+  text-align: center;
+}

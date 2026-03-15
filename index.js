@@ -10,6 +10,9 @@ import { getZoomLink } from './zoom-links.js';
 
 dotenv.config();
 
+// Копія початкового розкладу для відновлення
+const initialSchedule = JSON.parse(JSON.stringify(schedule));
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -142,6 +145,13 @@ app.post('/api/admin/schedule/delete', requireAdmin, (req, res) => {
   }
   const removed = before - schedule.length;
   res.json({ ok: true, removed });
+});
+
+// Відновити весь розклад до початкового стану
+app.post('/api/admin/schedule/restore', requireAdmin, (req, res) => {
+  schedule.length = 0;
+  schedule.push(...JSON.parse(JSON.stringify(initialSchedule)));
+  res.json({ ok: true });
 });
 
 // --------- Старт сервера ---------

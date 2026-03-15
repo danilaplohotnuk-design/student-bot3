@@ -69,8 +69,13 @@ function renderSchedule(date, lessons) {
   lessons.forEach((lesson) => {
     const card = document.createElement('div');
     card.className = 'lesson-card lesson-card--clickable';
+    card.dataset.date = date;
+    card.dataset.startTime = lesson.startTime;
+    card.dataset.endTime = lesson.endTime || '';
     card.dataset.title = lesson.title;
     card.dataset.teacher = lesson.teacher || '';
+    card.dataset.building = lesson.building || '';
+    card.dataset.room = lesson.room || '';
 
     const title = document.createElement('h2');
     title.className = 'lesson-title';
@@ -120,7 +125,16 @@ function renderSchedule(date, lessons) {
       longPressTimer = setTimeout(() => {
         longPressHandled = true;
         longPressTimer = null;
-        openPasswordModal();
+        const lesson = {
+          date: card.dataset.date,
+          startTime: card.dataset.startTime,
+          endTime: card.dataset.endTime,
+          title: card.dataset.title,
+          teacher: card.dataset.teacher || '',
+          building: card.dataset.building || '',
+          room: card.dataset.room || '',
+        };
+        openPasswordModal(lesson);
       }, 500);
     };
 
@@ -165,7 +179,7 @@ function closeModals() {
   if (overlay) overlay.remove();
 }
 
-function openPasswordModal() {
+function openPasswordModal(lessonOrNull) {
   closeModals();
   const overlay = document.createElement('div');
   overlay.id = 'schedule-modal-overlay';
@@ -203,7 +217,7 @@ function openPasswordModal() {
       if (res.ok) {
         storedAdminPassword = password;
         closeModals();
-        openAddPairFormModal();
+        openChoiceModalAfterPassword(lessonOrNull);
       } else {
         errorEl.style.display = 'block';
       }
@@ -218,7 +232,104 @@ function openPasswordModal() {
   });
 }
 
-async function openAddPairFormModal() {
+function openChoiceModalAfterPassword(lessonOrNull) {
+  closeModals();
+  const overlay = document.createElement('div');
+  overlay.id = 'schedule-modal-overlay';
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box modal-choice">
+      <h3 class="modal-title">Що робити?</h3>
+      <div class="modal-choice-buttons">
+        <button type="button" class="modal-btn modal-btn-primary modal-choice-btn" data-action="add">Додати / змінити пару</button>
+        ${lessonOrNull ? '<button type="button" class="modal-btn modal-btn-danger modal-choice-btn" data-action="delete">Видалити цю пару</button>' : ''}
+        <button type="button" class="modal-btn modal-btn-secondary modal-choice-btn" data-action="restore">Відновити весь розклад</button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Закрити</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay || e.target.dataset.action === 'cancel') {
+      closeModals();
+      return;
+    }
+    const action = e.target.closest('[data-action]')?.dataset.action;
+    if (action === 'add') {
+      closeModals();
+      openAddPairFormModal(lessonOrNull);
+    } else if (action === 'delete' && lessonOrNull) {
+      closeModals();
+      confirmDeletePair(lessonOrNull);
+    } else if (action === 'restore') {
+      closeModals();
+      confirmRestoreSchedule();
+    }
+  });
+}
+
+function confirmDeletePair(lesson) {
+  if (!confirm(`Видалити пару «${lesson.title}» (${lesson.startTime})?`)) return;
+  deletePair(lesson).then((ok) => {
+    if (ok) {
+      showToast('Пару видалено');
+      loadSchedule(lesson.date);
+    } else {
+      showToast('Помилка видалення');
+    }
+  });
+}
+
+async function deletePair(lesson) {
+  try {
+    const res = await fetch('/api/admin/schedule/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': storedAdminPassword,
+      },
+      body: JSON.stringify({
+        date: lesson.date,
+        startTime: lesson.startTime,
+        title: lesson.title,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+function confirmRestoreSchedule() {
+  if (!confirm('Відновити весь розклад до початкового? Усі зміни будуть втрачені.')) return;
+  restoreSchedule().then((ok) => {
+    if (ok) {
+      showToast('Розклад відновлено');
+      if (currentScheduleDate) loadSchedule(currentScheduleDate);
+    } else {
+      showToast('Помилка відновлення');
+    }
+  });
+}
+
+async function restoreSchedule() {
+  try {
+    const res = await fetch('/api/admin/schedule/restore', {
+      method: 'POST',
+      headers: { 'x-admin-password': storedAdminPassword },
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function openAddPairFormModal(lessonOrNull) {
   if (!currentScheduleDate) {
     showToast('Оберіть дату в розкладі');
     return;
@@ -232,30 +343,38 @@ async function openAddPairFormModal() {
     subjects = data.subjects || [];
   } catch (_) {}
 
+  const isEdit = Boolean(lessonOrNull);
+  const timeVal = lessonOrNull
+    ? `${lessonOrNull.startTime}|${lessonOrNull.endTime || TIME_SLOTS.find((t) => t.startTime === lessonOrNull.startTime)?.endTime || ''}`
+    : '';
+
   const overlay = document.createElement('div');
   overlay.id = 'schedule-modal-overlay';
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal-box modal-form">
-      <h3 class="modal-title">Зміна пари</h3>
-      <p class="modal-hint">Додати пару на ${currentScheduleDate}</p>
+      <h3 class="modal-title">${isEdit ? 'Зміна пари' : 'Додати пару'}</h3>
+      <p class="modal-hint">${isEdit ? 'Змінити пару на ' : 'Додати пару на '}${currentScheduleDate}</p>
       <label class="modal-label">Предмет</label>
       <select id="modal-subject" class="modal-select">
         <option value="">Оберіть предмет</option>
-        ${subjects.map((s) => `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`).join('')}
+        ${subjects.map((s) => `<option value="${s.replace(/"/g, '&quot;')}"${lessonOrNull && s === lessonOrNull.title ? ' selected' : ''}>${s}</option>`).join('')}
       </select>
       <label class="modal-label">Час</label>
       <select id="modal-time" class="modal-select">
-        ${TIME_SLOTS.map((t) => `<option value="${t.startTime}|${t.endTime}">${t.label}</option>`).join('')}
+        ${TIME_SLOTS.map((t) => {
+          const val = `${t.startTime}|${t.endTime}`;
+          return `<option value="${val}"${timeVal === val ? ' selected' : ''}>${t.label}</option>`;
+        }).join('')}
       </select>
       <label class="modal-label">Корпус</label>
-      <input type="text" id="modal-building" class="modal-input" placeholder="Наприклад: 2" />
+      <input type="text" id="modal-building" class="modal-input" placeholder="Наприклад: 2" value="${lessonOrNull?.building ? String(lessonOrNull.building).replace(/"/g, '&quot;') : ''}" />
       <label class="modal-label">Аудиторія</label>
-      <input type="text" id="modal-room" class="modal-input" placeholder="Наприклад: 104" />
+      <input type="text" id="modal-room" class="modal-input" placeholder="Наприклад: 104" value="${lessonOrNull?.room ? String(lessonOrNull.room).replace(/"/g, '&quot;') : ''}" />
       <p id="modal-form-error" class="modal-error" style="display:none;"></p>
       <div class="modal-actions">
         <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
-        <button type="button" class="modal-btn modal-btn-primary" data-action="add">Додати пару</button>
+        <button type="button" class="modal-btn modal-btn-primary" data-action="add">${isEdit ? 'Зберегти' : 'Додати пару'}</button>
       </div>
     </div>
   `;
@@ -273,17 +392,41 @@ async function openAddPairFormModal() {
 
   overlay.querySelector('[data-action="add"]').addEventListener('click', async () => {
     const title = subjectSelect.value.trim();
-    const timeVal = timeSelect.value;
+    const timeValSel = timeSelect.value;
     const building = buildingInput.value.trim();
     const room = roomInput.value.trim();
     errorEl.style.display = 'none';
-    if (!title || !timeVal || !building || !room) {
+    if (!title || !timeValSel || !building || !room) {
       errorEl.textContent = 'Заповніть усі поля';
       errorEl.style.display = 'block';
       return;
     }
-    const [startTime, endTime] = timeVal.split('|');
+    const [startTime, endTime] = timeValSel.split('|');
     try {
+      const scheduleRes = await fetch(`/api/schedule?date=${encodeURIComponent(currentScheduleDate)}`);
+      const scheduleData = await scheduleRes.json().catch(() => ({}));
+      const lessons = scheduleData.lessons || [];
+      const existingAtTime = lessons.find((l) => l.startTime === startTime);
+      if (existingAtTime) {
+        const delRes = await fetch('/api/admin/schedule/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-password': storedAdminPassword,
+          },
+          body: JSON.stringify({
+            date: currentScheduleDate,
+            startTime: existingAtTime.startTime,
+            title: existingAtTime.title,
+          }),
+        });
+        if (!delRes.ok) {
+          const d = await delRes.json().catch(() => ({}));
+          errorEl.textContent = d.error || 'Помилка заміни';
+          errorEl.style.display = 'block';
+          return;
+        }
+      }
       const res = await fetch('/api/admin/schedule/add', {
         method: 'POST',
         headers: {
@@ -303,7 +446,7 @@ async function openAddPairFormModal() {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
         closeModals();
-        showToast('Пару додано');
+        showToast(existingAtTime ? 'Пару оновлено' : 'Пару додано');
         loadSchedule(currentScheduleDate);
       } else {
         errorEl.textContent = data.error || 'Помилка збереження';
