@@ -29,11 +29,24 @@ const RUN_BOT = Boolean(BOT_TOKEN);
 let bot = null;
 if (RUN_BOT) {
   bot = new Telegraf(BOT_TOKEN);
-  // Команда /start — тільки текст, без інлайн-кнопки; відкрити розклад — кнопка меню Telegram
+  // Команда /start — тільки текст; кнопка біля поля вводу = меню Telegram (синя, як "Open"), не інлайн
   bot.start(async (ctx) => {
-    const text = WEBAPP_URL.startsWith('https://')
-      ? 'Привіт! Це розклад занять. Натисни кнопку меню зверху, щоб відкрити веб-додаток.'
-      : 'Привіт! Це розклад занять. Кнопка меню зʼявиться після деплою на HTTPS.';
+    const isPrivate = ctx.chat?.type === 'private';
+    const isHttps = WEBAPP_URL.startsWith('https://');
+    if (isPrivate && isHttps) {
+      try {
+        await ctx.telegram.setChatMenuButton(ctx.chat.id, {
+          type: 'web_app',
+          text: 'Відкрити розклад',
+          web_app: { url: WEBAPP_URL },
+        });
+      } catch (err) {
+        console.error('Помилка встановлення кнопки меню:', err.message || err);
+      }
+    }
+    const text = isHttps
+      ? 'Привіт! Це розклад занять. Натисни синю кнопку біля поля вводу, щоб відкрити веб-додаток.'
+      : 'Привіт! Це розклад занять. Кнопка зʼявиться після деплою на HTTPS.';
     try {
       await ctx.reply(text);
     } catch (err) {
