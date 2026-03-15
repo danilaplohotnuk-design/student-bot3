@@ -29,7 +29,8 @@ const RUN_BOT = Boolean(BOT_TOKEN);
 let bot = null;
 if (RUN_BOT) {
   bot = new Telegraf(BOT_TOKEN);
-  // Команда /start — тільки текст; кнопка біля поля вводу = меню Telegram (синя, як "Open"), не інлайн
+  // Кнопка "Відкрити розклад" = меню Telegram (setChatMenuButton). Якщо бачиш "17 Розклад" —
+  // у BotFather: Bot Settings → Menu Button → встанови "Default", щоб наша кнопка застосовувалась.
   bot.start(async (ctx) => {
     const isPrivate = ctx.chat?.type === 'private';
     const isHttps = WEBAPP_URL.startsWith('https://');
@@ -40,8 +41,9 @@ if (RUN_BOT) {
           text: 'Відкрити розклад',
           web_app: { url: WEBAPP_URL },
         });
+        console.log('Кнопка меню встановлена для чату', ctx.chat.id, '→ Відкрити розклад');
       } catch (err) {
-        console.error('Помилка встановлення кнопки меню:', err.message || err);
+        console.error('Помилка встановлення кнопки меню (перевір BotFather → Menu Button та домен Web App):', err.message || err);
       }
     }
     const text = isHttps
