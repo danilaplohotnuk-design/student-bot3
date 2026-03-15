@@ -198,7 +198,7 @@ body {
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--accent);
-  background: var(--accent-soft);
+  background: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15)), var(--accent-soft);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid rgba(59, 130, 246, 0.25);
@@ -213,7 +213,7 @@ body {
 }
 
 .btn-quick:hover {
-  background: rgba(59, 130, 246, 0.25);
+  background: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15)), rgba(59, 130, 246, 0.25);
 }
 
 /* === Schedule list === */
@@ -712,7 +712,6 @@ body[data-bg-mode="light"] {
 }
 
 body[data-bg-mode="light"] .date-input,
-body[data-bg-mode="light"] .btn-quick,
 body[data-bg-mode="light"] .btn-bg {
   background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(var(--glass-blur));
@@ -722,6 +721,11 @@ body[data-bg-mode="light"] .btn-bg {
   color: var(--text);
 }
 body[data-bg-mode="light"] .btn-quick {
+  background: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15)), rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: var(--glass-edge);
   color: var(--accent);
 }
 body[data-bg-mode="light"] .lesson-card {
