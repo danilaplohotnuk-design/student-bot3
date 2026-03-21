@@ -349,6 +349,33 @@ function hslToHex(h, s, l) {
   return rgbToHex(r, g, b);
 }
 
+/**
+ * Текст на світлому фону: завжди хроматичний (темніший відтінок кольору тла), не нейтральний чорний.
+ */
+function lightModeTextFromBg(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) {
+    return { main: '#1e3a5f', muted: '#3d5a80', dim: '#5a6f8a' };
+  }
+  const { h, s } = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  const hue = h;
+  const baseS = Math.max(0.12, s || 0.15);
+  if (s < 0.07) {
+    return {
+      main: hslToHex(220, 0.22, 0.3),
+      muted: hslToHex(218, 0.18, 0.44),
+      dim: hslToHex(215, 0.14, 0.52),
+    };
+  }
+  const sm = Math.min(0.55, baseS + 0.1);
+  const sd = Math.max(0.1, sm * 0.5);
+  return {
+    main: hslToHex(hue, sm, 0.22),
+    muted: hslToHex(hue, sm * 0.72, 0.36),
+    dim: hslToHex(hue, sd, 0.48),
+  };
+}
+
 function setTextModeByLuminance(luminance) {
   document.body.dataset.bgMode = luminance > LUMINANCE_THRESHOLD ? 'light' : 'dark';
 }
@@ -377,15 +404,15 @@ function setAdaptiveColorsFromBg(hex, luminance) {
   const sat = Math.max(0.12, s || 0.15);
 
   if (isLight) {
-    /* Світлий фон: стабільні «скляні» панелі з CSS (body[data-bg-mode="light"]), не тонуємо під hex */
+    /* Світлий фон: скляні панелі з CSS; текст — затемнений відтінок кольору фону, не «чорний» slate */
     document.body.style.removeProperty('--bg-card');
     document.body.style.removeProperty('--bg-card-hover');
     document.body.style.removeProperty('--border');
     document.body.style.removeProperty('--border-light');
-    /* Нейтральна типографіка slate — читабельно на будь-якому світлому тлі */
-    document.body.style.setProperty('--text', '#0f172a');
-    document.body.style.setProperty('--text-muted', '#475569');
-    document.body.style.setProperty('--text-dim', '#64748b');
+    const t = lightModeTextFromBg(hex);
+    document.body.style.setProperty('--text', t.main);
+    document.body.style.setProperty('--text-muted', t.muted);
+    document.body.style.setProperty('--text-dim', t.dim);
   } else {
     document.body.style.setProperty('--text', blendHex(hex, '#f8fafc', 0.86));
     document.body.style.setProperty('--text-muted', blendHex(hex, '#e2e8f0', 0.69));

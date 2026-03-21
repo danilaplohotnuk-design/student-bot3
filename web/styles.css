@@ -1446,21 +1446,25 @@ body.admin-page .app-shell {
   margin-bottom: 0;
 }
 
-/* Режим світлого фону: стабільні «скляні» панелі (не тонуємо під hex у JS) + типографіка */
+/* Режим світлого фону: скляні панелі лишаються прозорими (blur тягне читабельність) */
 body[data-bg-mode="light"] {
-  --text: #0f172a;
-  --text-muted: #475569;
-  --text-dim: #64748b;
-  --bg-card: rgba(255, 255, 255, 0.55);
-  --bg-card-hover: rgba(255, 255, 255, 0.72);
+  /* До застосування JS: синьо-сталеві тони, не нейтральний чорний (узгоджено з lightModeTextFromBg) */
+  --text: #1e3a5f;
+  --text-muted: #3d5a80;
+  --text-dim: #5a6f8a;
+  --bg-card: rgba(255, 255, 255, 0.2);
+  --bg-card-hover: rgba(255, 255, 255, 0.3);
   --border: rgba(15, 23, 42, 0.08);
   --border-light: rgba(15, 23, 42, 0.12);
-  --place: #475569;
+  --place: #4d6a8a;
   --accent-soft: rgba(59, 130, 246, 0.2);
   --time: #b45309;
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
   --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.1);
   --glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.65), inset 0 -1px 0 rgba(15, 23, 42, 0.05);
+  /* Трохи сильніший blur, щоб текст лишався читабельним на прозоріших панелях */
+  --glass-blur: 14px;
+  --glass-blur-strong: 22px;
   color: var(--text);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -1483,7 +1487,7 @@ body[data-bg-mode="light"] .lesson-card .lesson-time {
 body[data-bg-mode="light"] .date-input,
 body[data-bg-mode="light"] .btn-quick,
 body[data-bg-mode="light"] .btn-bg {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.22);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid rgba(0, 0, 0, 0.06);
@@ -1498,7 +1502,7 @@ body[data-bg-mode="light"] .lesson-card:hover {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1), var(--glass-edge);
 }
 body[data-bg-mode="light"] .zoom-toast {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.28);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
   border: 1px solid rgba(0, 0, 0, 0.06);
@@ -1511,7 +1515,7 @@ body[data-bg-mode="light"] .modal-overlay {
   -webkit-backdrop-filter: blur(8px);
 }
 body[data-bg-mode="light"] .modal-box {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
   border: 1px solid rgba(0, 0, 0, 0.06);
@@ -1526,7 +1530,7 @@ body[data-bg-mode="light"] .modal-hint {
 }
 body[data-bg-mode="light"] .modal-input,
 body[data-bg-mode="light"] .modal-select {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.45);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -1535,7 +1539,7 @@ body[data-bg-mode="light"] .modal-select {
 }
 body[data-bg-mode="light"] .modal-btn-cancel,
 body[data-bg-mode="light"] .modal-btn-secondary {
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.35);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--text);
@@ -1544,7 +1548,7 @@ body[data-bg-mode="light"] .modal-btn-secondary {
 }
 body[data-bg-mode="light"] .modal-btn-cancel:hover,
 body[data-bg-mode="light"] .modal-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.48);
 }
 
 body[data-bg-mode="light"] .modal-overlay--pair {
@@ -1552,19 +1556,19 @@ body[data-bg-mode="light"] .modal-overlay--pair {
 }
 
 body[data-bg-mode="light"] .modal-pair-glass {
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.42);
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: var(--shadow-glass), var(--glass-edge);
 }
 
 body[data-bg-mode="light"] .building-panel {
-  background: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.22);
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: var(--glass-edge);
 }
 
 body[data-bg-mode="light"] .building-panel:hover {
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.32);
 }
 
 body[data-bg-mode="light"] .building-panel--selected {
