@@ -1158,8 +1158,48 @@ function applySwipeSnapAnimation(front, actions, finalX) {
 }
 
 function closeModals() {
+  closeReminderPopover();
   const overlay = document.getElementById('schedule-modal-overlay');
   if (overlay) overlay.remove();
+}
+
+let reminderPopoverOpen = false;
+
+function reminderEscapeHandler(e) {
+  if (e.key === 'Escape') closeReminderPopover();
+}
+
+function positionReminderPopover() {
+  const btn = document.getElementById('reminder-trigger');
+  const pop = document.querySelector('#reminder-popover-root .reminder-popover');
+  if (!btn || !pop) return;
+  const r = btn.getBoundingClientRect();
+  const gap = 10;
+  const vh = window.innerHeight;
+  const margin = 12;
+  pop.style.right = `${Math.round(window.innerWidth - r.right)}px`;
+  pop.style.left = 'auto';
+  pop.style.bottom = 'auto';
+  pop.style.top = `${Math.round(r.bottom + gap)}px`;
+  requestAnimationFrame(() => {
+    const pr = pop.getBoundingClientRect();
+    if (pr.bottom > vh - margin) {
+      const up = Math.max(margin, r.top - gap - pr.height);
+      pop.style.top = `${Math.round(up)}px`;
+    }
+  });
+}
+
+function closeReminderPopover() {
+  window.removeEventListener('keydown', reminderEscapeHandler);
+  window.removeEventListener('resize', positionReminderPopover);
+  reminderPopoverOpen = false;
+  const root = document.getElementById('reminder-popover-root');
+  if (!root) return;
+  root.classList.remove('reminder-popover-root--open');
+  setTimeout(() => {
+    root.remove();
+  }, 280);
 }
 
 async function fetchReminderFromServer() {
@@ -1199,65 +1239,87 @@ function syncReminderTrigger() {
   btn.setAttribute('aria-label', 'Важливе нагадування');
 }
 
-function openReminderModal() {
-  closeModals();
+function openReminderPopover() {
+  if (reminderPopoverOpen) return;
+  const stale = document.getElementById('reminder-popover-root');
+  if (stale) {
+    stale.remove();
+    window.removeEventListener('keydown', reminderEscapeHandler);
+    window.removeEventListener('resize', positionReminderPopover);
+  }
   const editable = adminMode;
-  const overlay = document.createElement('div');
-  overlay.id = 'schedule-modal-overlay';
-  overlay.className = 'modal-overlay';
+  const root = document.createElement('div');
+  root.id = 'reminder-popover-root';
+  root.className = 'reminder-popover-root';
+  root.setAttribute('role', 'presentation');
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'reminder-popover-backdrop';
+  backdrop.setAttribute('aria-hidden', 'true');
+
+  const panel = document.createElement('div');
+  panel.className = 'reminder-popover' + (editable ? ' reminder-popover--edit' : '');
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'true');
+  panel.setAttribute('aria-labelledby', 'reminder-popover-title');
 
   if (editable) {
-    overlay.innerHTML = `
-      <div class="modal-box modal-reminder">
-        <h3 class="modal-title">Нагадування</h3>
-        <p class="modal-hint">Текст побачать усі студенти. Кнопка з «!» зʼявляється, якщо є текст (або в режимі редагування).</p>
-        <textarea id="reminder-modal-text" class="modal-input modal-textarea" rows="7" maxlength="4000" placeholder="Важлива інформація для студентів…"></textarea>
-        <p id="reminder-modal-error" class="modal-error" style="display:none;"></p>
-        <div class="modal-actions modal-actions--reminder">
-          <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
-          <button type="button" class="modal-btn modal-btn-secondary" data-action="clear">Очистити</button>
-          <button type="button" class="modal-btn modal-btn-primary" data-action="save">Зберегти</button>
-        </div>
+    panel.innerHTML = `
+      <h3 id="reminder-popover-title" class="reminder-popover__title">Нагадування</h3>
+      <p class="reminder-popover__hint">Текст побачать усі студенти.</p>
+      <textarea id="reminder-modal-text" class="modal-input modal-textarea reminder-popover__textarea" rows="6" maxlength="4000" placeholder="Важлива інформація для студентів…"></textarea>
+      <p id="reminder-modal-error" class="modal-error" style="display:none;"></p>
+      <div class="reminder-popover__actions">
+        <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
+        <button type="button" class="modal-btn modal-btn-secondary" data-action="clear">Очистити</button>
+        <button type="button" class="modal-btn modal-btn-primary" data-action="save">Зберегти</button>
       </div>`;
   } else {
-    overlay.innerHTML = `
-      <div class="modal-box modal-reminder">
-        <h3 class="modal-title">Важливо</h3>
-        <div class="reminder-readonly"></div>
-        <div class="modal-actions">
-          <button type="button" class="modal-btn modal-btn-primary" data-action="close">Закрити</button>
-        </div>
-      </div>`;
+    panel.innerHTML = `
+      <h3 id="reminder-popover-title" class="reminder-popover__title">Важливо</h3>
+      <div class="reminder-readonly reminder-popover__body" id="reminder-readonly-text"></div>`;
   }
 
-  document.body.appendChild(overlay);
+  root.appendChild(backdrop);
+  root.appendChild(panel);
+  document.body.appendChild(root);
 
-  /* У WebView/Telegram після тапу по кнопці «!» другий synthetic click часто потрапляє на фон
-     overlay → миттєве closeModals(). Ігноруємо закриття по фону коротко після відкриття. */
   let allowBackdropClose = false;
   setTimeout(() => {
     allowBackdropClose = true;
   }, 450);
 
-  const isBackdropClick = (e) => e.target === overlay;
+  backdrop.addEventListener('click', () => {
+    if (!allowBackdropClose) return;
+    closeReminderPopover();
+  });
+
+  panel.addEventListener('click', (e) => e.stopPropagation());
+
+  window.addEventListener('resize', positionReminderPopover);
+  window.addEventListener('keydown', reminderEscapeHandler);
+
+  reminderPopoverOpen = true;
+  requestAnimationFrame(() => {
+    positionReminderPopover();
+    root.classList.add('reminder-popover-root--open');
+    requestAnimationFrame(() => positionReminderPopover());
+  });
 
   if (editable) {
-    const ta = overlay.querySelector('#reminder-modal-text');
+    const ta = panel.querySelector('#reminder-modal-text');
     ta.value = reminderText;
-    ta.focus();
-    const err = overlay.querySelector('#reminder-modal-error');
+    setTimeout(() => ta.focus(), 0);
+    const err = panel.querySelector('#reminder-modal-error');
 
-    overlay.addEventListener('click', (e) => {
-      if (isBackdropClick(e) && !allowBackdropClose) return;
-      if (isBackdropClick(e) || e.target.dataset.action === 'cancel') closeModals();
-    });
+    panel.querySelector('[data-action="cancel"]').addEventListener('click', closeReminderPopover);
 
-    overlay.querySelector('[data-action="clear"]').addEventListener('click', () => {
+    panel.querySelector('[data-action="clear"]').addEventListener('click', () => {
       ta.value = '';
       ta.focus();
     });
 
-    overlay.querySelector('[data-action="save"]').addEventListener('click', async () => {
+    panel.querySelector('[data-action="save"]').addEventListener('click', async () => {
       err.style.display = 'none';
       err.textContent = '';
       try {
@@ -1272,7 +1334,7 @@ function openReminderModal() {
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.ok) {
           reminderText = typeof data.text === 'string' ? data.text : ta.value;
-          closeModals();
+          closeReminderPopover();
           syncReminderTrigger();
           showToast('Нагадування збережено');
         } else {
@@ -1285,13 +1347,8 @@ function openReminderModal() {
       }
     });
   } else {
-    const readEl = overlay.querySelector('.reminder-readonly');
+    const readEl = panel.querySelector('#reminder-readonly-text');
     if (readEl) readEl.textContent = reminderText;
-    overlay.addEventListener('click', (e) => {
-      if (isBackdropClick(e) && !allowBackdropClose) return;
-      if (isBackdropClick(e) || e.target.dataset.action === 'close') closeModals();
-    });
-    overlay.querySelector('[data-action="close"]').addEventListener('click', closeModals);
   }
 }
 
@@ -1338,6 +1395,7 @@ function registerGlobalSwipeDismiss() {
       if (!adminMode) return;
       if (e.target.closest('.lesson-swipe-btn')) return;
       if (document.getElementById('schedule-modal-overlay')) return;
+      if (document.getElementById('reminder-popover-root')) return;
       if (!hasOpenSwipe()) return;
       if (e.target.closest('.lesson-card--swipe-front')) return;
       closeAllLessonSwipes();
@@ -1874,9 +1932,10 @@ if (adminExitBtn) {
 
 const reminderTrigger = document.getElementById('reminder-trigger');
 if (reminderTrigger) {
-  reminderTrigger.addEventListener('click', () => {
+  reminderTrigger.addEventListener('click', (e) => {
+    e.stopPropagation();
     if (!adminMode && (!reminderText || !reminderText.trim())) return;
-    openReminderModal();
+    openReminderPopover();
   });
 }
 
