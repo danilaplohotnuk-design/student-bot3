@@ -196,21 +196,33 @@ function setAdaptiveColorsFromBg(hex, luminance) {
   const sat = Math.max(0.12, s || 0.15);
 
   if (isLight) {
-    document.body.style.setProperty('--text', blendHex(hex, '#0a0a0f', 0.82));
-    document.body.style.setProperty('--text-muted', blendHex(hex, '#0a0a0f', 0.59));
-    document.body.style.setProperty('--text-dim', blendHex(hex, '#0a0a0f', 0.44));
+    /* Світлий фон: стабільні «скляні» панелі з CSS (body[data-bg-mode="light"]), не тонуємо під hex */
+    document.body.style.removeProperty('--bg-card');
+    document.body.style.removeProperty('--bg-card-hover');
+    document.body.style.removeProperty('--border');
+    document.body.style.removeProperty('--border-light');
+    /* Нейтральна типографіка slate — читабельно на будь-якому світлому тлі */
+    document.body.style.setProperty('--text', '#0f172a');
+    document.body.style.setProperty('--text-muted', '#475569');
+    document.body.style.setProperty('--text-dim', '#64748b');
   } else {
     document.body.style.setProperty('--text', blendHex(hex, '#f8fafc', 0.86));
     document.body.style.setProperty('--text-muted', blendHex(hex, '#e2e8f0', 0.69));
     document.body.style.setProperty('--text-dim', blendHex(hex, '#94a3b8', 0.64));
   }
 
-  /* Акцент (посилання Zoom тощо) — спліт-комплемент до відтінку фону */
-  const accentHex = hslToHex((h + 218) % 360, Math.min(0.85, sat + 0.38), isLight ? 0.38 : 0.68);
-  /* Час пари — теплий відтінок у гармонії з базовим */
-  const timeHex = hslToHex((h + 34) % 360, Math.min(0.88, sat + 0.5), isLight ? 0.32 : 0.62);
-  /* Корпус / аудиторія — приглушений той самий ряд */
-  const placeHex = hslToHex(h, Math.min(0.42, sat + 0.08), isLight ? 0.36 : 0.7);
+  /* Акцент / час / місце — гармонія з відтінком фону; на світлому — приглушеніші */
+  const accentHex = hslToHex(
+    (h + 218) % 360,
+    Math.min(isLight ? 0.58 : 0.85, sat + (isLight ? 0.22 : 0.38)),
+    isLight ? 0.44 : 0.68,
+  );
+  const timeHex = hslToHex(
+    (h + 32) % 360,
+    Math.min(isLight ? 0.72 : 0.88, sat + (isLight ? 0.35 : 0.5)),
+    isLight ? 0.36 : 0.62,
+  );
+  const placeHex = hslToHex(h, Math.min(isLight ? 0.22 : 0.42, sat + 0.08), isLight ? 0.4 : 0.7);
 
   document.body.style.setProperty('--accent', accentHex);
   document.body.style.setProperty('--time', timeHex);
@@ -220,18 +232,20 @@ function setAdaptiveColorsFromBg(hex, luminance) {
   if (accRgb) {
     document.body.style.setProperty(
       '--accent-soft',
-      `rgba(${accRgb.r},${accRgb.g},${accRgb.b},${isLight ? 0.2 : 0.22})`,
+      `rgba(${accRgb.r},${accRgb.g},${accRgb.b},${isLight ? 0.18 : 0.22})`,
     );
   }
 
-  /* Панелі карток — тон фону, узгоджений з обраним кольором */
-  const cardTint = blendHex(hex, '#ffffff', isLight ? 0.72 : 0.22);
-  const cm = hexToRgb(cardTint);
-  if (cm) {
-    document.body.style.setProperty('--bg-card', `rgba(${cm.r},${cm.g},${cm.b},${isLight ? 0.45 : 0.11})`);
-    document.body.style.setProperty('--bg-card-hover', `rgba(${cm.r},${cm.g},${cm.b},${isLight ? 0.62 : 0.16})`);
-    document.body.style.setProperty('--border', `rgba(${cm.r},${cm.g},${cm.b},${isLight ? 0.2 : 0.28})`);
-    document.body.style.setProperty('--border-light', `rgba(${cm.r},${cm.g},${cm.b},${isLight ? 0.3 : 0.36})`);
+  /* Темний фон: панелі підлаштовуємо під колір; світлий — лише з CSS */
+  if (!isLight) {
+    const cardTint = blendHex(hex, '#ffffff', 0.22);
+    const cm = hexToRgb(cardTint);
+    if (cm) {
+      document.body.style.setProperty('--bg-card', `rgba(${cm.r},${cm.g},${cm.b},0.11)`);
+      document.body.style.setProperty('--bg-card-hover', `rgba(${cm.r},${cm.g},${cm.b},0.16)`);
+      document.body.style.setProperty('--border', `rgba(${cm.r},${cm.g},${cm.b},0.28)`);
+      document.body.style.setProperty('--border-light', `rgba(${cm.r},${cm.g},${cm.b},0.36)`);
+    }
   }
 }
 
@@ -242,14 +256,16 @@ function setAdaptiveColorsFromBg(hex, luminance) {
 function applyColormindPalette(palette, luminance) {
   if (!Array.isArray(palette) || palette.length !== 5) return;
   const isLight = luminance > LUMINANCE_THRESHOLD;
+  /* Світлий фон: панелі фіксовані в CSS; Colormind лише для темних фонів */
+  if (isLight) return;
   const [, c1, c2, c3, c4] = palette;
   const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
-  document.body.style.setProperty('--bg-card', rgba(c1, isLight ? 0.34 : 0.15));
-  document.body.style.setProperty('--bg-card-hover', rgba(c1, isLight ? 0.48 : 0.21));
-  document.body.style.setProperty('--border', rgba(c2, isLight ? 0.38 : 0.4));
-  document.body.style.setProperty('--border-light', rgba(c2, isLight ? 0.48 : 0.5));
+  document.body.style.setProperty('--bg-card', rgba(c1, 0.15));
+  document.body.style.setProperty('--bg-card-hover', rgba(c1, 0.21));
+  document.body.style.setProperty('--border', rgba(c2, 0.4));
+  document.body.style.setProperty('--border-light', rgba(c2, 0.5));
   document.body.style.setProperty('--accent', rgbToHex(c3[0], c3[1], c3[2]));
-  document.body.style.setProperty('--accent-soft', `rgba(${c3[0]},${c3[1]},${c3[2]},${isLight ? 0.2 : 0.24})`);
+  document.body.style.setProperty('--accent-soft', `rgba(${c3[0]},${c3[1]},${c3[2]},0.24)`);
   document.body.style.setProperty('--time', rgbToHex(c4[0], c4[1], c4[2]));
   const pr = Math.round((c2[0] + c3[0]) / 2);
   const pg = Math.round((c2[1] + c3[1]) / 2);
@@ -258,6 +274,7 @@ function applyColormindPalette(palette, luminance) {
 }
 
 function fetchColormindPalette(hex, luminance) {
+  if (luminance > LUMINANCE_THRESHOLD) return;
   fetch('/api/palette/colormind', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -362,9 +379,10 @@ function openBackgroundModal() {
         <label class="modal-label" style="margin-top:16px">Зображення (URL)</label>
         <input type="url" id="modal-bg-image" class="modal-input" placeholder="https://..." value="${stored?.type === 'image' ? stored.value : ''}" />
         <p class="modal-hint modal-hint-sm" style="margin-top:12px">
-          Після вибору кольору палітра для панелей, рамок, часу, корпусу/аудиторії та посилань підбирається через
+          <strong>Світлий фон:</strong> панелі лишаються нейтральним матовим склом; акценти часу/посилань — у гармонії з відтінком.
+          <strong>Темний фон:</strong> панелі й палітра додатково через
           <a href="http://colormind.io/" target="_blank" rel="noopener noreferrer" class="modal-inline-link">Colormind</a>
-          (запит іде через наш сервер). Якщо сервіс недоступний — залишається локальний підбір. Текст контрастний до фону завжди локально.
+          (через сервер). Якщо Colormind недоступний — локальний підбір.
         </p>
       </div>
       <p id="modal-bg-error" class="modal-error" style="display:none;"></p>
