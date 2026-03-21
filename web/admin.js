@@ -56,7 +56,9 @@ loginBtn.addEventListener('click', async () => {
   }
   try {
     const check = await fetch('/api/admin/check', {
-      headers: { 'x-admin-password': value },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: value }),
     });
     if (!check.ok) {
       statusEl.textContent = 'Невірний пароль.';

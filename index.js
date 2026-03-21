@@ -158,8 +158,10 @@ app.get('/api/zoom-link', (req, res) => {
 
 // Middleware для простої перевірки пароля
 function requireAdmin(req, res, next) {
-  const password = req.headers['x-admin-password'] || req.body?.password;
-  if (!password || password !== ADMIN_PASSWORD) {
+  const raw = req.headers['x-admin-password'] ?? req.body?.password;
+  const password = typeof raw === 'string' ? raw.trim() : raw;
+  const expected = String(ADMIN_PASSWORD ?? '').trim();
+  if (!password || password !== expected) {
     return res.status(401).json({ error: 'Невірний адмін-пароль' });
   }
   next();
@@ -167,6 +169,13 @@ function requireAdmin(req, res, next) {
 
 // Перевірка пароля (для форми зміни пари в додатку)
 app.get('/api/admin/check', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true });
+});
+
+/* POST — надійніше в Telegram WebView (пароль у тілі, без кастомного заголовка) */
+app.post('/api/admin/check', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.json({ ok: true });
 });
 

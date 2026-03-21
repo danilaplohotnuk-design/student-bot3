@@ -8,87 +8,6 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-const CYLINDER_ITEM_PX = 58;
-
-/**
- * Колесо вибору з ефектом обертання по циліндру (scroll + rotateX).
- */
-function setupCylinderWheel(container, items, initialValue) {
-  const list = container.querySelector('.cylinder-wheel__list');
-  const viewport = container.querySelector('.cylinder-wheel__viewport');
-  if (!list || !viewport || !items.length) return;
-
-  list.innerHTML = items
-    .map(
-      (it) =>
-        `<li class="cylinder-wheel__item" role="option" data-value="${escapeHtml(it.value)}"><span class="cylinder-wheel__item-text">${escapeHtml(it.label)}</span></li>`,
-    )
-    .join('');
-
-  const vh = viewport.clientHeight || 200;
-  const pad = Math.max(0, (vh - CYLINDER_ITEM_PX) / 2);
-  list.style.paddingTop = `${pad}px`;
-  list.style.paddingBottom = `${pad}px`;
-
-  let idx = items.findIndex((i) => i.value === initialValue);
-  if (idx < 0) idx = 0;
-  container.dataset.selectedValue = items[idx].value;
-
-  const applyCylinderTransforms = () => {
-    const mid = viewport.getBoundingClientRect().top + viewport.clientHeight / 2;
-    list.querySelectorAll('.cylinder-wheel__item').forEach((item) => {
-      const r = item.getBoundingClientRect();
-      const ic = r.top + r.height / 2;
-      const delta = (ic - mid) / CYLINDER_ITEM_PX;
-      const rotateX = Math.max(-58, Math.min(58, -delta * 28));
-      const scale = 1 - Math.min(0.12, Math.abs(delta) * 0.048);
-      /* по краях вертикалі — до повної прозорості, без «підлоги» */
-      const op = Math.max(0, 1 - Math.abs(delta) * 0.42);
-      item.style.transform = `rotateX(${rotateX}deg) scale(${scale})`;
-      item.style.opacity = String(op);
-    });
-  };
-
-  const syncSelectionFromScroll = () => {
-    const mid = viewport.getBoundingClientRect().top + viewport.clientHeight / 2;
-    let best = 0;
-    let bestDist = Infinity;
-    list.querySelectorAll('.cylinder-wheel__item').forEach((item, i) => {
-      const r = item.getBoundingClientRect();
-      const ic = r.top + r.height / 2;
-      const d = Math.abs(ic - mid);
-      if (d < bestDist) {
-        bestDist = d;
-        best = i;
-      }
-    });
-    if (items[best]) {
-      container.dataset.selectedValue = items[best].value;
-    }
-    applyCylinderTransforms();
-  };
-
-  list.addEventListener(
-    'scroll',
-    () => {
-      requestAnimationFrame(syncSelectionFromScroll);
-    },
-    { passive: true },
-  );
-
-  const scrollToIndex = (index) => {
-    const i = Math.max(0, Math.min(items.length - 1, index));
-    list.scrollTop = i * CYLINDER_ITEM_PX;
-  };
-
-  requestAnimationFrame(() => {
-    scrollToIndex(idx);
-    requestAnimationFrame(() => {
-      syncSelectionFromScroll();
-    });
-  });
-}
-
 if (tg) {
   tg.expand();
   tg.enableClosingConfirmation();
@@ -838,7 +757,7 @@ function openPasswordModal(lessonOrNull, options = {}) {
       <h3 class="modal-title">Пароль</h3>
       <p class="modal-hint">Введіть пароль адміністратора</p>
       <input type="password" id="modal-password-input" class="modal-input" placeholder="Пароль" autocomplete="off" />
-      <p id="modal-password-error" class="modal-error" style="display:none;">Невірний пароль</p>
+      <p id="modal-password-error" class="modal-error" style="display:none;"></p>
       <div class="modal-actions">
         <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
         <button type="button" class="modal-btn modal-btn-primary" data-action="submit">Продовжити</button>
@@ -859,9 +778,12 @@ function openPasswordModal(lessonOrNull, options = {}) {
     const password = input.value.trim();
     if (!password) return;
     errorEl.style.display = 'none';
+    errorEl.textContent = 'Невірний пароль';
     try {
       const res = await fetch('/api/admin/check', {
-        headers: { 'x-admin-password': password },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
       });
       if (res.ok) {
         storedAdminPassword = password;
@@ -874,10 +796,14 @@ function openPasswordModal(lessonOrNull, options = {}) {
           if (currentScheduleDate) loadSchedule(currentScheduleDate);
           return;
         }
+      } else if (res.status === 401) {
+        errorEl.style.display = 'block';
       } else {
+        errorEl.textContent = `Помилка сервера (${res.status})`;
         errorEl.style.display = 'block';
       }
     } catch (_) {
+      errorEl.textContent = 'Немає зв’язку з сервером. Відкрийте додаток через той самий хост, де запущено API.';
       errorEl.style.display = 'block';
     }
   };
@@ -956,21 +882,22 @@ async function openAddPairFormModal(lessonOrNull) {
       `<button type="button" class="building-panel time-panel" data-time="${escapeHtml(`${t.startTime}|${t.endTime}`)}" aria-pressed="false">${escapeHtml(t.label)}</button>`,
   ).join('');
 
+  const subjectOptionsHtml = subjectItems
+    .map(
+      (it) => `<option value="${escapeHtml(it.value)}">${escapeHtml(it.label)}</option>`,
+    )
+    .join('');
+
   overlay.innerHTML = `
     <div class="modal-box modal-form modal-pair-glass">
       <h3 class="modal-title">${isEdit ? 'Зміна пари' : 'Додати пару'}</h3>
       <p class="modal-hint">${isEdit ? 'Змінити пару на ' : 'Додати пару на '}${currentScheduleDate}</p>
       <div class="pair-wheels" role="group" aria-label="Предмет і час">
         <div class="pair-wheels__subject">
-          <div class="cylinder-wheel" id="modal-subject-cylinder" data-selected-value="">
-            <div class="cylinder-wheel__caption">ПРЕДМЕТ</div>
-            <div class="cylinder-wheel__viewport">
-              <div class="cylinder-wheel__shade cylinder-wheel__shade--top" aria-hidden="true"></div>
-              <div class="cylinder-wheel__shade cylinder-wheel__shade--bottom" aria-hidden="true"></div>
-              <div class="cylinder-wheel__ring" aria-hidden="true"></div>
-              <ul class="cylinder-wheel__list" role="listbox"></ul>
-            </div>
-          </div>
+          <label for="modal-subject-select" class="modal-label">ПРЕДМЕТ</label>
+          <select id="modal-subject-select" name="subject" class="modal-select modal-subject-select">
+            ${subjectOptionsHtml}
+          </select>
         </div>
         <div class="pair-wheels__time">
           <label class="modal-label">ЧАС</label>
@@ -985,8 +912,20 @@ async function openAddPairFormModal(lessonOrNull) {
         <button type="button" class="building-panel" data-building="2" aria-pressed="false">2</button>
         <button type="button" class="building-panel" data-building="3" aria-pressed="false">3</button>
       </div>
-      <label class="modal-label">АУДИТОРІЯ</label>
-      <input type="text" id="modal-room" class="modal-input" placeholder="Наприклад: 104" value="${lessonOrNull?.room ? String(lessonOrNull.room).replace(/"/g, '&quot;') : ''}" />
+      <label for="modal-room" class="modal-label">АУДИТОРІЯ</label>
+      <input
+        type="text"
+        id="modal-room"
+        name="room"
+        class="modal-input modal-input--room"
+        placeholder="Наприклад: 104"
+        autocomplete="off"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        enterkeyhint="done"
+        inputmode="text"
+      />
       <p id="modal-form-error" class="modal-error" style="display:none;"></p>
       <div class="modal-actions">
         <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
@@ -996,8 +935,16 @@ async function openAddPairFormModal(lessonOrNull) {
   `;
   document.body.appendChild(overlay);
 
-  const subjectCylinder = overlay.querySelector('#modal-subject-cylinder');
-  setupCylinderWheel(subjectCylinder, subjectItems, subjectInitial);
+  const subjectSelect = overlay.querySelector('#modal-subject-select');
+  if (subjectSelect) {
+    if (subjectInitial) {
+      subjectSelect.value = subjectInitial;
+    }
+    const stop = (e) => e.stopPropagation();
+    subjectSelect.addEventListener('pointerdown', stop);
+    subjectSelect.addEventListener('touchstart', stop, { passive: true });
+    subjectSelect.addEventListener('click', stop);
+  }
 
   const timePanels = overlay.querySelector('#modal-time-panels');
   const setTimeSelection = (value) => {
@@ -1021,6 +968,17 @@ async function openAddPairFormModal(lessonOrNull) {
   const buildingPanels = overlay.querySelector('#modal-building-panels');
   const roomInput = overlay.querySelector('#modal-room');
   const errorEl = overlay.querySelector('#modal-form-error');
+
+  if (roomInput) {
+    if (lessonOrNull != null && lessonOrNull.room != null && String(lessonOrNull.room).trim() !== '') {
+      roomInput.value = String(lessonOrNull.room);
+    }
+    /* Telegram WebView: не даємо подіям «з’їдати» фокус поля */
+    const stop = (e) => e.stopPropagation();
+    roomInput.addEventListener('pointerdown', stop);
+    roomInput.addEventListener('touchstart', stop, { passive: true });
+    roomInput.addEventListener('click', stop);
+  }
 
   const setBuildingSelection = (value) => {
     if (!buildingPanels) return;
@@ -1051,7 +1009,7 @@ async function openAddPairFormModal(lessonOrNull) {
   });
 
   overlay.querySelector('[data-action="add"]').addEventListener('click', async () => {
-    const title = (subjectCylinder?.dataset.selectedValue ?? '').trim();
+    const title = (subjectSelect?.value ?? '').trim();
     const timeValSel =
       overlay.querySelector('.time-panel.building-panel--selected')?.dataset.time ?? '';
     const building =
