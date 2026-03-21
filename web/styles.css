@@ -54,46 +54,50 @@ body {
   min-width: 0;
 }
 
-/* Вихід з режиму редагування — кнопка зліва зверху */
+/* Вихід з режиму редагування — під списком пар */
 .admin-exit-strip {
-  position: absolute;
-  top: max(20px, env(safe-area-inset-top));
-  left: max(0px, env(safe-area-inset-left));
-  z-index: 30;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  flex-shrink: 0;
+  margin-top: 12px;
+  margin-bottom: 4px;
+  z-index: 10;
 }
 
 .admin-exit-btn {
-  width: 44px;
-  height: 44px;
-  display: flex;
+  width: auto;
+  min-width: 132px;
+  min-height: 46px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  border: 1px solid var(--border-light);
+  padding: 12px 28px;
   border-radius: var(--radius-sm);
-  background: var(--bg-card);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  /* Контрастна «плитка» на темному фоні додатку */
+  background: #f1f5f9;
+  color: #0f172a;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
 
 .admin-exit-btn:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--border);
-  color: var(--text);
+  background: #ffffff;
+  color: #020617;
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-.admin-exit-x {
-  font-size: 1.75rem;
+.admin-exit-label {
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
   line-height: 1;
-  font-weight: 300;
-}
-
-body.admin-mode .app-header-inner {
-  padding-left: 52px;
+  text-transform: uppercase;
 }
 
 /* Підпис під «Сьогодні / Завтра» + пунктир */
@@ -293,11 +297,23 @@ body.admin-mode .app-header-inner {
 }
 
 /* === Schedule list === */
-.schedule-list {
+.schedule-main {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+.schedule-list {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+}
+
+.schedule-main-spacer {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .lesson-card {
@@ -997,11 +1013,86 @@ body.admin-page .app-shell {
   margin-bottom: 14px;
 }
 
+.modal-pair-glass .modal-label {
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.building-panels {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+.building-panel {
+  margin: 0;
+  padding: 14px 12px;
+  font-family: var(--font);
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: var(--pair-glass-edge);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.building-panel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--border-light);
+}
+
+.building-panel:active {
+  transform: scale(0.98);
+}
+
+.building-panel--selected {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.18);
+  box-shadow: var(--pair-glass-edge), 0 0 0 1px rgba(59, 130, 246, 0.25);
+}
+
 .pair-wheels {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin-bottom: 8px;
+  align-items: start;
+}
+
+.pair-wheels__subject,
+.pair-wheels__time {
+  min-width: 0;
+}
+
+.pair-wheels__time .modal-label {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.time-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.time-panel {
+  padding: 12px 10px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: normal;
+  text-align: center;
+  hyphens: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (max-width: 420px) {
@@ -1017,6 +1108,7 @@ body.admin-page .app-shell {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 10px;
+  text-align: center;
 }
 
 /* Без затемнення й «рамки» — лише перспектива для 3D-обертання */
@@ -1044,19 +1136,19 @@ body.admin-page .app-shell {
   transform-style: preserve-3d;
   position: relative;
   z-index: 1;
-  /* М’який фейд до прозорості зверху/знизу без затемнення області */
+  /* Вужчі зони фейду зверху/знизу — менша «рамка» невидимості */
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    #000 14%,
-    #000 86%,
+    #000 6%,
+    #000 94%,
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    #000 14%,
-    #000 86%,
+    #000 6%,
+    #000 94%,
     transparent 100%
   );
 }
@@ -1147,6 +1239,19 @@ body[data-bg-mode="light"] {
   color: var(--text);
 }
 
+body[data-bg-mode="light"] .admin-exit-btn {
+  background: #0f172a;
+  color: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.85);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+}
+
+body[data-bg-mode="light"] .admin-exit-btn:hover {
+  background: #1e293b;
+  color: #ffffff;
+  border-color: rgba(30, 41, 59, 0.95);
+}
+
 body[data-bg-mode="light"] .date-input,
 body[data-bg-mode="light"] .btn-quick,
 body[data-bg-mode="light"] .btn-bg {
@@ -1222,6 +1327,21 @@ body[data-bg-mode="light"] .modal-pair-glass {
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(0, 0, 0, 0.08);
   box-shadow: var(--shadow-glass), var(--glass-edge);
+}
+
+body[data-bg-mode="light"] .building-panel {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: var(--glass-edge);
+}
+
+body[data-bg-mode="light"] .building-panel:hover {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+body[data-bg-mode="light"] .building-panel--selected {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.14);
 }
 
 body[data-bg-mode="light"] .cylinder-wheel__viewport {

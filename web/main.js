@@ -950,38 +950,42 @@ async function openAddPairFormModal(lessonOrNull) {
 
   const subjectItems = [{ value: '', label: 'Оберіть предмет' }, ...subjects.map((s) => ({ value: s, label: s }))];
   const subjectInitial = lessonOrNull?.title != null ? String(lessonOrNull.title) : '';
-  const timeItems = TIME_SLOTS.map((t) => ({
-    value: `${t.startTime}|${t.endTime}`,
-    label: t.label,
-  }));
+
+  const timePanelsHtml = TIME_SLOTS.map(
+    (t) =>
+      `<button type="button" class="building-panel time-panel" data-time="${escapeHtml(`${t.startTime}|${t.endTime}`)}" aria-pressed="false">${escapeHtml(t.label)}</button>`,
+  ).join('');
 
   overlay.innerHTML = `
     <div class="modal-box modal-form modal-pair-glass">
       <h3 class="modal-title">${isEdit ? 'Зміна пари' : 'Додати пару'}</h3>
       <p class="modal-hint">${isEdit ? 'Змінити пару на ' : 'Додати пару на '}${currentScheduleDate}</p>
       <div class="pair-wheels" role="group" aria-label="Предмет і час">
-        <div class="cylinder-wheel" id="modal-subject-cylinder" data-selected-value="">
-          <div class="cylinder-wheel__caption">Предмет</div>
-          <div class="cylinder-wheel__viewport">
-            <div class="cylinder-wheel__shade cylinder-wheel__shade--top" aria-hidden="true"></div>
-            <div class="cylinder-wheel__shade cylinder-wheel__shade--bottom" aria-hidden="true"></div>
-            <div class="cylinder-wheel__ring" aria-hidden="true"></div>
-            <ul class="cylinder-wheel__list" role="listbox"></ul>
+        <div class="pair-wheels__subject">
+          <div class="cylinder-wheel" id="modal-subject-cylinder" data-selected-value="">
+            <div class="cylinder-wheel__caption">ПРЕДМЕТ</div>
+            <div class="cylinder-wheel__viewport">
+              <div class="cylinder-wheel__shade cylinder-wheel__shade--top" aria-hidden="true"></div>
+              <div class="cylinder-wheel__shade cylinder-wheel__shade--bottom" aria-hidden="true"></div>
+              <div class="cylinder-wheel__ring" aria-hidden="true"></div>
+              <ul class="cylinder-wheel__list" role="listbox"></ul>
+            </div>
           </div>
         </div>
-        <div class="cylinder-wheel" id="modal-time-cylinder" data-selected-value="">
-          <div class="cylinder-wheel__caption">Час</div>
-          <div class="cylinder-wheel__viewport">
-            <div class="cylinder-wheel__shade cylinder-wheel__shade--top" aria-hidden="true"></div>
-            <div class="cylinder-wheel__shade cylinder-wheel__shade--bottom" aria-hidden="true"></div>
-            <div class="cylinder-wheel__ring" aria-hidden="true"></div>
-            <ul class="cylinder-wheel__list" role="listbox"></ul>
+        <div class="pair-wheels__time">
+          <label class="modal-label">ЧАС</label>
+          <div class="time-panels" id="modal-time-panels" role="radiogroup" aria-label="Час">
+            ${timePanelsHtml}
           </div>
         </div>
       </div>
-      <label class="modal-label">Корпус</label>
-      <input type="text" id="modal-building" class="modal-input" placeholder="Наприклад: 2" value="${lessonOrNull?.building ? String(lessonOrNull.building).replace(/"/g, '&quot;') : ''}" />
-      <label class="modal-label">Аудиторія</label>
+      <label class="modal-label">КОРПУС</label>
+      <div class="building-panels" id="modal-building-panels" role="radiogroup" aria-label="Корпус">
+        <button type="button" class="building-panel" data-building="1" aria-pressed="false">1</button>
+        <button type="button" class="building-panel" data-building="2" aria-pressed="false">2</button>
+        <button type="button" class="building-panel" data-building="3" aria-pressed="false">3</button>
+      </div>
+      <label class="modal-label">АУДИТОРІЯ</label>
       <input type="text" id="modal-room" class="modal-input" placeholder="Наприклад: 104" value="${lessonOrNull?.room ? String(lessonOrNull.room).replace(/"/g, '&quot;') : ''}" />
       <p id="modal-form-error" class="modal-error" style="display:none;"></p>
       <div class="modal-actions">
@@ -993,13 +997,51 @@ async function openAddPairFormModal(lessonOrNull) {
   document.body.appendChild(overlay);
 
   const subjectCylinder = overlay.querySelector('#modal-subject-cylinder');
-  const timeCylinder = overlay.querySelector('#modal-time-cylinder');
   setupCylinderWheel(subjectCylinder, subjectItems, subjectInitial);
-  setupCylinderWheel(timeCylinder, timeItems, timeVal);
 
-  const buildingInput = overlay.querySelector('#modal-building');
+  const timePanels = overlay.querySelector('#modal-time-panels');
+  const setTimeSelection = (value) => {
+    if (!timePanels) return;
+    timePanels.querySelectorAll('.time-panel').forEach((btn) => {
+      const sel = btn.dataset.time === value;
+      btn.classList.toggle('building-panel--selected', sel);
+      btn.setAttribute('aria-pressed', sel ? 'true' : 'false');
+    });
+  };
+  if (timeVal) {
+    setTimeSelection(timeVal);
+  }
+
+  timePanels?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.time-panel');
+    if (!btn || !timePanels.contains(btn)) return;
+    setTimeSelection(btn.dataset.time);
+  });
+
+  const buildingPanels = overlay.querySelector('#modal-building-panels');
   const roomInput = overlay.querySelector('#modal-room');
   const errorEl = overlay.querySelector('#modal-form-error');
+
+  const setBuildingSelection = (value) => {
+    if (!buildingPanels) return;
+    buildingPanels.querySelectorAll('.building-panel').forEach((btn) => {
+      const sel = btn.dataset.building === value;
+      btn.classList.toggle('building-panel--selected', sel);
+      btn.setAttribute('aria-pressed', sel ? 'true' : 'false');
+    });
+  };
+
+  const initialBuilding =
+    lessonOrNull?.building != null ? String(lessonOrNull.building).trim() : '';
+  if (['1', '2', '3'].includes(initialBuilding)) {
+    setBuildingSelection(initialBuilding);
+  }
+
+  buildingPanels?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.building-panel');
+    if (!btn || !buildingPanels.contains(btn)) return;
+    setBuildingSelection(btn.dataset.building);
+  });
 
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay || e.target.dataset.action === 'cancel') {
@@ -1010,8 +1052,10 @@ async function openAddPairFormModal(lessonOrNull) {
 
   overlay.querySelector('[data-action="add"]').addEventListener('click', async () => {
     const title = (subjectCylinder?.dataset.selectedValue ?? '').trim();
-    const timeValSel = timeCylinder?.dataset.selectedValue ?? '';
-    const building = buildingInput.value.trim();
+    const timeValSel =
+      overlay.querySelector('.time-panel.building-panel--selected')?.dataset.time ?? '';
+    const building =
+      overlay.querySelector('.building-panel.building-panel--selected')?.dataset.building?.trim() ?? '';
     const room = roomInput.value.trim();
     errorEl.style.display = 'none';
     if (!title || !timeValSel || !building || !room) {

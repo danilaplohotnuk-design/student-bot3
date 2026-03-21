@@ -13,11 +13,6 @@
 </head>
 <body>
   <div class="app-shell" id="app-shell">
-    <div id="admin-exit-strip" class="admin-exit-strip" hidden>
-      <button type="button" id="admin-exit-btn" class="admin-exit-btn" aria-label="Вийти з режиму редагування">
-        <span class="admin-exit-x" aria-hidden="true">×</span>
-      </button>
-    </div>
     <header class="app-header">
       <div class="app-header-inner">
         <h1 class="app-title">Розклад</h1>
@@ -41,7 +36,15 @@
       <div class="admin-mode-banner-rule" aria-hidden="true"></div>
     </div>
 
-    <main id="schedule" class="schedule-list"></main>
+    <main class="schedule-main">
+      <div id="schedule" class="schedule-list"></div>
+      <div id="admin-exit-strip" class="admin-exit-strip" hidden>
+        <button type="button" id="admin-exit-btn" class="admin-exit-btn" aria-label="Вийти з режиму редагування">
+          <span class="admin-exit-label">Вийти</span>
+        </button>
+      </div>
+      <div class="schedule-main-spacer" aria-hidden="true"></div>
+    </main>
 
     <footer class="app-footer">
       <span class="app-footer-text">Розклад для студентів</span>
