@@ -591,7 +591,10 @@ function closeModals() {
   if (overlay) overlay.remove();
 }
 
-/** Видимість кнопок Замінити/Видалити лише після свайпу (0…1 за прогресом). */
+/**
+ * Під час перетягування — кнопки поступово з’являються разом із зсувом (0…1).
+ * Після відпускання незавершеного свайпу opacity доводить до 0 через applySwipeSnapAnimation(…, 0).
+ */
 function updateSwipeActionsVisibility(front, maxW) {
   const wrap = front.parentElement;
   if (!wrap) return;
@@ -600,6 +603,7 @@ function updateSwipeActionsVisibility(front, maxW) {
   const m = front.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
   const tx = m ? parseFloat(m[1], 10) : 0;
   const reveal = Math.max(0, Math.min(1, -tx / maxW));
+  actions.style.transition = 'none';
   actions.style.opacity = String(reveal);
   actions.style.pointerEvents = reveal > 0.12 ? 'auto' : 'none';
   actions.setAttribute('aria-hidden', reveal < 0.08 ? 'true' : 'false');
@@ -610,6 +614,32 @@ function closeAllLessonSwipes() {
     const actions = el.parentElement?.querySelector('.lesson-card-swipe-actions');
     applySwipeSnapAnimation(el, actions, 0);
   });
+}
+
+function hasOpenSwipe() {
+  return [...document.querySelectorAll('.lesson-card--swipe-front')].some((el) => {
+    const m = el.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
+    return m && parseFloat(m[1], 10) < -2;
+  });
+}
+
+/**
+ * Тап поза кнопками «Замінити»/«Видалити» згортає свайп з анімацією «важкий м'яч».
+ * Натиск на самій панелі пари лишається в attachSwipeToLessonFront; на кнопках дій — без згортання (дія триває).
+ */
+function registerGlobalSwipeDismiss() {
+  document.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (!adminMode) return;
+      if (e.target.closest('.lesson-swipe-btn')) return;
+      if (document.getElementById('schedule-modal-overlay')) return;
+      if (!hasOpenSwipe()) return;
+      if (e.target.closest('.lesson-card--swipe-front')) return;
+      closeAllLessonSwipes();
+    },
+    true,
+  );
 }
 
 function syncAdminChrome() {
@@ -644,11 +674,11 @@ function attachSwipeToLessonFront(front, maxW) {
     (e) => {
       closeAllLessonSwipes();
       front.style.transition = 'none';
-      if (actions) actions.style.transition = 'none';
       const m = front.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
       lastTx = m ? parseFloat(m[1], 10) : 0;
       startX = e.touches[0].clientX;
       active = true;
+      updateSwipeActionsVisibility(front, maxW);
     },
     { passive: true },
   );
@@ -1017,4 +1047,5 @@ if (adminExitBtn) {
   adminExitBtn.addEventListener('click', () => runAdminUiAction(() => exitAdminMode()));
 }
 
+registerGlobalSwipeDismiss();
 syncAdminChrome();
