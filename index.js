@@ -38,18 +38,29 @@ const VERSION_INFO = loadVersionInfo();
 
 const REMINDER_FILE = path.join(__dirname, 'reminder.json');
 
-function getReminderText() {
+/** { text, updatedAt } — updatedAt = час останньої зміни (ms), для «непрочитаного» на клієнті */
+function readReminderFromDisk() {
   try {
     const raw = fs.readFileSync(REMINDER_FILE, 'utf8');
     const j = JSON.parse(raw);
-    return typeof j.text === 'string' ? j.text : '';
+    const text = typeof j.text === 'string' ? j.text : '';
+    let updatedAt = Number(j.updatedAt);
+    if (text && (!Number.isFinite(updatedAt) || updatedAt <= 0)) {
+      updatedAt = Date.now();
+      fs.writeFileSync(REMINDER_FILE, JSON.stringify({ text, updatedAt }), 'utf8');
+    }
+    if (!Number.isFinite(updatedAt)) updatedAt = 0;
+    return { text, updatedAt };
   } catch {
-    return '';
+    return { text: '', updatedAt: 0 };
   }
 }
 
-function setReminderText(text) {
-  fs.writeFileSync(REMINDER_FILE, JSON.stringify({ text: String(text ?? '') }), 'utf8');
+function writeReminderToDisk(text) {
+  const updatedAt = Date.now();
+  const payload = { text: String(text ?? ''), updatedAt };
+  fs.writeFileSync(REMINDER_FILE, JSON.stringify(payload), 'utf8');
+  return payload;
 }
 
 const app = express();
@@ -173,7 +184,7 @@ app.get('/api/zoom-link', (req, res) => {
 // Текст нагадування (для всіх; зберігається в reminder.json на сервері)
 app.get('/api/reminder', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json({ text: getReminderText() });
+  res.json(readReminderFromDisk());
 });
 
 // --------- API: адмін-редагування (простий варіант у памʼяті) ---------
@@ -257,9 +268,9 @@ app.put('/api/admin/reminder', requireAdmin, (req, res) => {
   if (raw.length > 4000) {
     return res.status(400).json({ error: 'Текст не довший за 4000 символів' });
   }
-  setReminderText(raw);
+  const { text, updatedAt } = writeReminderToDisk(raw);
   res.set('Cache-Control', 'no-store');
-  res.json({ ok: true, text: getReminderText() });
+  res.json({ ok: true, text, updatedAt });
 });
 
 // --------- Старт сервера ---------

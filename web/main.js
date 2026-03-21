@@ -1106,8 +1106,53 @@ let storedAdminPassword = '';
 let adminMode = false;
 /** Текст нагадування з GET /api/reminder */
 let reminderText = '';
+/** Час останньої зміни на сервері (ms) — для непрочитаного */
+let reminderUpdatedAt = 0;
 /** Після першого запиту /api/reminder (щоб у звичайному режимі не миготіла кнопка до відповіді) */
 let reminderFetchSettled = false;
+
+const REMINDER_SEEN_KEY = 'schedule_app_reminder_seen_ts';
+
+function getReminderSeenTs() {
+  try {
+    const n = parseInt(localStorage.getItem(REMINDER_SEEN_KEY) || '0', 10);
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function markReminderSeen() {
+  if (!reminderUpdatedAt) return;
+  try {
+    localStorage.setItem(REMINDER_SEEN_KEY, String(reminderUpdatedAt));
+  } catch (_) {}
+}
+
+/** Кожен рядок тексту — окремий абзац (новий рядок у редакторі = новий блок) */
+function fillReminderReadonlyBody(el, text) {
+  if (!el) return;
+  el.textContent = '';
+  const lines = String(text).split(/\r?\n/);
+  lines.forEach((line) => {
+    const p = document.createElement('p');
+    p.className = 'reminder-readonly-para';
+    if (line === '') {
+      p.classList.add('reminder-readonly-para--empty');
+      p.textContent = '\u00A0';
+    } else {
+      p.textContent = line;
+    }
+    el.appendChild(p);
+  });
+}
+
+function isReminderUnreadForUser() {
+  if (adminMode) return false;
+  if (!reminderText || !reminderText.trim()) return false;
+  if (!reminderUpdatedAt) return false;
+  return reminderUpdatedAt > getReminderSeenTs();
+}
 
 /** Захист від випадкових подвійних натискань у режимі адміна (мс) */
 const ADMIN_UI_COOLDOWN_MS = 450;
@@ -1208,6 +1253,8 @@ async function fetchReminderFromServer() {
     if (res.ok) {
       const data = await res.json();
       if (typeof data.text === 'string') reminderText = data.text;
+      const ts = Number(data.updatedAt);
+      reminderUpdatedAt = Number.isFinite(ts) && ts > 0 ? ts : 0;
     }
   } catch (_) {}
   reminderFetchSettled = true;
@@ -1218,6 +1265,7 @@ function syncReminderTrigger() {
   const btn = document.getElementById('reminder-trigger');
   if (!btn) return;
   const hasText = !!(reminderText && reminderText.trim());
+  btn.classList.remove('reminder-trigger--unread');
 
   if (adminMode) {
     btn.hidden = false;
@@ -1237,6 +1285,9 @@ function syncReminderTrigger() {
   if (btn.hidden) btn.setAttribute('aria-hidden', 'true');
   else btn.removeAttribute('aria-hidden');
   btn.setAttribute('aria-label', 'Важливе нагадування');
+  if (!btn.hidden && isReminderUnreadForUser()) {
+    btn.classList.add('reminder-trigger--unread');
+  }
 }
 
 function openReminderPopover() {
@@ -1267,7 +1318,7 @@ function openReminderPopover() {
     panel.innerHTML = `
       <h3 id="reminder-popover-title" class="reminder-popover__title">Нагадування</h3>
       <p class="reminder-popover__hint">Текст побачать усі студенти.</p>
-      <textarea id="reminder-modal-text" class="modal-input modal-textarea reminder-popover__textarea" rows="6" maxlength="4000" placeholder="Важлива інформація для студентів…"></textarea>
+      <textarea id="reminder-modal-text" class="reminder-popover__textarea reminder-popover__field" rows="6" maxlength="4000" placeholder="Важлива інформація для студентів…"></textarea>
       <p id="reminder-modal-error" class="modal-error" style="display:none;"></p>
       <div class="reminder-popover__actions">
         <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
@@ -1334,6 +1385,8 @@ function openReminderPopover() {
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.ok) {
           reminderText = typeof data.text === 'string' ? data.text : ta.value;
+          const ts = Number(data.updatedAt);
+          if (Number.isFinite(ts) && ts > 0) reminderUpdatedAt = ts;
           closeReminderPopover();
           syncReminderTrigger();
           showToast('Нагадування збережено');
@@ -1348,7 +1401,9 @@ function openReminderPopover() {
     });
   } else {
     const readEl = panel.querySelector('#reminder-readonly-text');
-    if (readEl) readEl.textContent = reminderText;
+    fillReminderReadonlyBody(readEl, reminderText);
+    markReminderSeen();
+    syncReminderTrigger();
   }
 }
 

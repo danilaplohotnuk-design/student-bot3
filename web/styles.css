@@ -1023,6 +1023,29 @@ body.admin-page .app-shell {
   transform: scale(0.96);
 }
 
+/* Повільне мерцання, коли є нове непрочитане нагадування (не адмін) */
+@keyframes reminder-trigger-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  }
+  50% {
+    opacity: 0.88;
+    filter: brightness(1.12);
+    box-shadow: 0 4px 32px rgba(251, 191, 36, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.25);
+  }
+}
+
+.reminder-trigger--unread {
+  animation: reminder-trigger-shimmer 2.5s ease-in-out infinite;
+}
+
+.reminder-trigger--unread:active {
+  animation: none;
+}
+
 .reminder-trigger__icon {
   display: block;
   font-size: 1.45rem;
@@ -1114,12 +1137,64 @@ body.admin-page .app-shell {
   overflow-y: auto;
 }
 
+/* Два ряди: Скасувати | Очистити, потім Зберегти на всю ширину — без з’їзду на вузьких екранах */
 .reminder-popover__actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin-top: 12px;
-  justify-content: flex-end;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.reminder-popover__actions .modal-btn {
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: center;
+  text-align: center;
+}
+
+.reminder-popover__actions .modal-btn[data-action='save'] {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 340px) {
+  .reminder-popover__actions {
+    grid-template-columns: 1fr;
+  }
+
+  .reminder-popover__actions .modal-btn[data-action='save'] {
+    grid-column: 1;
+  }
+}
+
+/* Поле тексту без рамки (як просили) */
+.reminder-popover__field {
+  width: 100%;
+  margin: 0;
+  padding: 10px 4px;
+  font-family: var(--font);
+  font-size: 1rem;
+  line-height: 1.45;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  resize: vertical;
+  min-height: 120px;
+  max-height: min(38vh, 320px);
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.reminder-popover__field::placeholder {
+  color: var(--text-muted);
+}
+
+.reminder-popover__field:focus {
+  outline: none;
 }
 
 .modal-textarea {
@@ -1128,16 +1203,29 @@ body.admin-page .app-shell {
   line-height: 1.45;
 }
 
+/* Текст для студентів: без зовнішньої рамки, кожен рядок — окремий абзац */
 .reminder-readonly {
-  padding: 12px 14px;
+  padding: 4px 2px;
   font-size: 0.9375rem;
   line-height: 1.5;
   color: var(--text);
-  white-space: pre-wrap;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.reminder-readonly-para {
+  margin: 0 0 10px;
   word-break: break-word;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+}
+
+.reminder-readonly-para:last-child {
+  margin-bottom: 0;
+}
+
+.reminder-readonly-para--empty {
+  min-height: 0.6em;
+  margin-bottom: 8px;
 }
 
 .reminder-popover:not(.reminder-popover--edit) .reminder-readonly {
@@ -1157,8 +1245,8 @@ body[data-bg-mode="light"] .reminder-popover-backdrop {
 }
 
 body[data-bg-mode="light"] .reminder-readonly {
-  background: rgba(255, 255, 255, 0.28);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: transparent;
+  border: none;
 }
 
 /* === Модалки: пароль і зміна пари (матове скло) === */
