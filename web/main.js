@@ -367,9 +367,7 @@ function clearAdaptiveColors() {
   document.body.style.removeProperty('--border-light');
 }
 
-/**
- * Текст + локальні гармонійні акценти й «скло» панелей; після цього може перезаписати Colormind (applyColormindPalette).
- */
+/** Текст + локальні гармонійні акценти й «скло» панелей під колір фону */
 function setAdaptiveColorsFromBg(hex, luminance) {
   const rgb = hexToRgb(hex);
   if (!rgb) return;
@@ -432,46 +430,6 @@ function setAdaptiveColorsFromBg(hex, luminance) {
   }
 }
 
-/**
- * Colormind: 5 кольорів [0]…[4] — панелі, рамки, акцент, час; текст лишається з setAdaptiveColorsFromBg.
- * @param {number[][]} palette — [[r,g,b], …]
- */
-function applyColormindPalette(palette, luminance) {
-  if (!Array.isArray(palette) || palette.length !== 5) return;
-  const isLight = luminance > LUMINANCE_THRESHOLD;
-  /* Світлий фон: панелі фіксовані в CSS; Colormind лише для темних фонів */
-  if (isLight) return;
-  const [, c1, c2, c3, c4] = palette;
-  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
-  document.body.style.setProperty('--bg-card', rgba(c1, 0.15));
-  document.body.style.setProperty('--bg-card-hover', rgba(c1, 0.21));
-  document.body.style.setProperty('--border', rgba(c2, 0.4));
-  document.body.style.setProperty('--border-light', rgba(c2, 0.5));
-  document.body.style.setProperty('--accent', rgbToHex(c3[0], c3[1], c3[2]));
-  document.body.style.setProperty('--accent-soft', `rgba(${c3[0]},${c3[1]},${c3[2]},0.24)`);
-  document.body.style.setProperty('--time', rgbToHex(c4[0], c4[1], c4[2]));
-  const pr = Math.round((c2[0] + c3[0]) / 2);
-  const pg = Math.round((c2[1] + c3[1]) / 2);
-  const pb = Math.round((c2[2] + c3[2]) / 2);
-  document.body.style.setProperty('--place', rgbToHex(pr, pg, pb));
-}
-
-function fetchColormindPalette(hex, luminance) {
-  if (luminance > LUMINANCE_THRESHOLD) return;
-  fetch('/api/palette/colormind', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ hex }),
-  })
-    .then((r) => (r.ok ? r.json() : null))
-    .then((data) => {
-      if (data?.ok && Array.isArray(data.palette) && data.palette.length === 5) {
-        applyColormindPalette(data.palette, luminance);
-      }
-    })
-    .catch(() => {});
-}
-
 function computeImageLuminanceAndColor(url, done) {
   const img = new Image();
   if (!/^data:/i.test(String(url))) {
@@ -531,7 +489,6 @@ function applyBackground(prefs) {
     const lum = getLuminanceForColor(prefs.value);
     setTextModeByLuminance(lum);
     setAdaptiveColorsFromBg(prefs.value, lum);
-    fetchColormindPalette(prefs.value, lum);
   } else {
     const p = normalizeImageBgPrefs(prefs);
     if (!p) {
@@ -550,7 +507,6 @@ function applyBackground(prefs) {
     computeImageLuminanceAndColor(p.value, (lum, avgHex) => {
       setTextModeByLuminance(lum);
       setAdaptiveColorsFromBg(avgHex, lum);
-      fetchColormindPalette(avgHex, lum);
     });
   }
 }

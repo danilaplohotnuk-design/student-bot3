@@ -154,51 +154,6 @@ app.get('/api/zoom-link', (req, res) => {
   res.json({ url: url || null });
 });
 
-/** Проксі до Colormind (HTTP) — з HTTPS-фронту не викликати напряму (mixed content) */
-function parseHexToRgb(hex) {
-  const m = String(hex ?? '')
-    .trim()
-    .replace(/^#/, '')
-    .match(/^([0-9a-f]{6})$/i);
-  if (!m) return null;
-  const n = parseInt(m[1], 16);
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
-}
-
-app.post('/api/palette/colormind', async (req, res) => {
-  const rgb = parseHexToRgb(req.body?.hex);
-  if (!rgb) {
-    return res.status(400).json({ error: 'Потрібен валідний hex (#RRGGBB)' });
-  }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-  try {
-    const cmRes = await fetch('http://colormind.io/api/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'ui',
-        input: [[rgb.r, rgb.g, rgb.b], 'N', 'N', 'N', 'N'],
-      }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!cmRes.ok) {
-      return res.status(502).json({ error: 'Colormind повернув помилку' });
-    }
-    const data = await cmRes.json();
-    const palette = data?.result;
-    if (!Array.isArray(palette) || palette.length !== 5) {
-      return res.status(502).json({ error: 'Некоректна відповідь Colormind' });
-    }
-    res.set('Cache-Control', 'no-store');
-    return res.json({ ok: true, palette });
-  } catch (err) {
-    clearTimeout(timeout);
-    return res.status(502).json({ error: 'Colormind недоступний' });
-  }
-});
-
 // --------- API: адмін-редагування (простий варіант у памʼяті) ---------
 
 // Middleware для простої перевірки пароля
