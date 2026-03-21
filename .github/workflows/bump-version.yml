@@ -1,0 +1,40 @@
+# Після кожного push у main: +1 до patch (0.0.1 → 0.0.2), коміт [skip version] не запускає повторний bump
+name: Bump version on push
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: bump-version-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bump:
+    if: ${{ !contains(github.event.head_commit.message, '[skip version]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bump patch (version.json + package.json)
+        run: node scripts/bump-version.mjs
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json package.json
+          if git diff --cached --quiet; then
+            echo "No version change"
+            exit 0
+          fi
+          git commit -m "chore: bump version [skip version]"
+          git push

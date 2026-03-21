@@ -1,9 +1,28 @@
 const tg = window.Telegram?.WebApp;
 
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 if (tg) {
   tg.expand();
   tg.enableClosingConfirmation();
 }
+
+// Підрахунок відкриття додатку (не залежить від GET /; cron не виконує JS)
+fetch('/api/track/pageview', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+
+fetch('/api/version')
+  .then((r) => r.json())
+  .then((d) => {
+    const el = document.getElementById('app-version');
+    if (el && d.display) el.textContent = `Версія ${d.display}`;
+  })
+  .catch(() => {});
 
 function todayISO() {
   const d = new Date();
@@ -651,7 +670,7 @@ async function openAddPairFormModal(lessonOrNull) {
       <label class="modal-label">Предмет</label>
       <select id="modal-subject" class="modal-select">
         <option value="">Оберіть предмет</option>
-        ${subjects.map((s) => `<option value="${s.replace(/"/g, '&quot;')}"${lessonOrNull && s === lessonOrNull.title ? ' selected' : ''}>${s}</option>`).join('')}
+        ${subjects.map((s) => `<option value="${escapeHtml(s)}"${lessonOrNull && s === lessonOrNull.title ? ' selected' : ''}>${escapeHtml(s)}</option>`).join('')}
       </select>
       <label class="modal-label">Час</label>
       <select id="modal-time" class="modal-select">

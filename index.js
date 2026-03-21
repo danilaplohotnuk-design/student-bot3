@@ -1,5 +1,6 @@
 // index.js — сервер + Telegram бот (локально polling, на хмарі webhook)
 
+import fs from 'fs';
 import express from 'express';
 import { Telegraf } from 'telegraf';
 import path from 'path';
@@ -17,7 +18,26 @@ const initialSchedule = JSON.parse(JSON.stringify(schedule));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function loadVersionInfo() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(__dirname, 'version.json'), 'utf8'));
+    const v = String(raw.version || '0.0.0').trim();
+    const parts = v.split('.').map((p) => {
+      const n = parseInt(p, 10);
+      return Number.isFinite(n) ? n : 0;
+    });
+    while (parts.length < 3) parts.push(0);
+    const [a, b, c] = parts;
+    const display = `${a}.${String(b).padStart(2, '0')}.${c}`;
+    return { version: v, display };
+  } catch {
+    return { version: '0.0.0', display: '0.00.0' };
+  }
+}
+const VERSION_INFO = loadVersionInfo();
+
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 // На хмарі (Render тощо) використовуємо RENDER_EXTERNAL_URL
@@ -61,34 +81,7 @@ if (RUN_BOT) {
     }
   });
 
-  // Коли бота додають в групу — встановити кнопку меню Telegram «Відкрити розклад»
-  bot.on('my_chat_member', async (ctx) => {
-    const update = ctx.myChatMember;
-    if (!update) return;
-    const newStatus = update.new_chat_member?.status;
-    const oldStatus = update.old_chat_member?.status;
-    const isAdded = (newStatus === 'member' || newStatus === 'administrator') &&
-      (oldStatus === 'left' || oldStatus === 'kicked' || oldStatus === undefined);
-    if (!isAdded) return;
-    const chatId = update.chat.id;
-    const isGroup = update.chat.type === 'group' || update.chat.type === 'supergroup';
-    if (!isGroup || !WEBAPP_URL.startsWith('https://')) return;
-    const botId = ctx.botInfo?.id;
-    const addedUserId = update.new_chat_member?.user?.id;
-    if (botId != null && addedUserId !== botId) return;
-    try {
-      await ctx.telegram.setChatMenuButton({
-        chatId,
-        menuButton: {
-          type: 'web_app',
-          text: 'Відкрити розклад',
-          web_app: { url: WEBAPP_URL },
-        },
-      });
-    } catch (err) {
-      console.error('Помилка встановлення кнопки меню в групі:', err.message || err);
-    }
-  });
+  // Кнопка меню Telegram (setChatMenuButton з chat_id) працює лише в приватних чатах, не в групах.
 }
 
 const USE_WEBHOOK = RUN_BOT && BASE_URL.startsWith('https://');
@@ -103,25 +96,31 @@ if (RUN_BOT) {
 // --------- Express: фронтенд і API ---------
 app.use(express.json());
 
-// Підрахунок заходів на головну сторінку (не API, не cron /api/health)
-app.use((req, res, next) => {
-  if (req.method !== 'GET') return next();
-  const p = req.path || '';
-  if (p === '/' || p === '/index.html') {
-    recordPageVisit(req);
-  }
-  next();
-});
-
 // Віддавати статичні файли з папки web (вона в тому ж корені, що й index.js)
 app.use(express.static(path.join(__dirname, 'web')));
+
+// Підрахунок відкриття додатку: викликається з main.js після завантаження (надійніше за GET / у Web App)
+// Cron до /api/health не виконує JS — у лічильник заходів не потрапляє
+app.post('/api/track/pageview', (req, res) => {
+  recordPageVisit(req);
+  res.status(204).send();
+});
+
+// Версія додатку (version.json; GitHub Actions збільшує patch при кожному push)
+app.get('/api/version', (req, res) => {
+  res.json(VERSION_INFO);
+});
 
 // --------- API: розклад ---------
 
 // GET /api/health — для cron-job.org (keep-alive / перевірка доступності)
 app.get('/api/health', (req, res) => {
   recordHealthPing();
-  res.status(200).json({ ok: true });
+  res.status(200).json({
+    ok: true,
+    version: VERSION_INFO.version,
+    display: VERSION_INFO.display,
+  });
 });
 
 // GET /api/schedule?date=YYYY-MM-DD  – розклад на конкретну дату
@@ -226,7 +225,7 @@ app.listen(PORT, async () => {
   } else if (USE_WEBHOOK) {
     try {
       await bot.telegram.setWebhook(`${BASE_URL}/webhook`, {
-        allowed_updates: ['message', 'my_chat_member'],
+        allowed_updates: ['message'],
       });
       console.log('Telegram webhook встановлено:', BASE_URL + '/webhook');
     } catch (err) {
@@ -234,7 +233,7 @@ app.listen(PORT, async () => {
     }
   } else {
     bot.launch({
-      allowedUpdates: ['message', 'my_chat_member'],
+      allowedUpdates: ['message'],
     }).then(() => console.log('Telegram бот (polling) запущений'))
       .catch((err) => console.error('Помилка запуску бота:', err.message || err));
   }
@@ -247,7 +246,7 @@ app.listen(PORT, async () => {
           web_app: { url: WEBAPP_URL },
         },
       });
-      console.log('Кнопка меню Telegram встановлена (за замовчуванням)');
+      console.log('Кнопка меню Telegram встановлена (за замовчуванням для нових користувачів)');
     } catch (err) {
       console.error('Помилка встановлення кнопки меню:', err.message || err);
     }

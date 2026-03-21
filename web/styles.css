@@ -534,6 +534,16 @@ body.admin-page .app-shell {
   color: var(--text-dim);
 }
 
+.app-footer-version {
+  flex-basis: 100%;
+  width: 100%;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  opacity: 0.85;
+  margin-top: 4px;
+}
+
 .btn-bg {
   padding: 8px 14px;
   font-family: var(--font);

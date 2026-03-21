@@ -1,11 +1,12 @@
 {
   "name": "tg-schedule-app",
-  "version": "1.0.0",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "version:bump": "node scripts/bump-version.mjs"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

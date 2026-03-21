@@ -13,8 +13,11 @@ const statsRefreshBtn = document.getElementById('admin-stats-refresh');
 
 let adminPassword = '';
 
+const statsErrorEl = document.getElementById('admin-stats-error');
+
 async function loadAdminStats() {
   if (!adminPassword) return;
+  if (statsErrorEl) statsErrorEl.style.display = 'none';
   try {
     const res = await fetch('/api/admin/stats', {
       headers: { 'x-admin-password': adminPassword },
@@ -23,6 +26,10 @@ async function loadAdminStats() {
       statPageVisits.textContent = '—';
       statUnique.textContent = '—';
       statCron.textContent = '—';
+      if (statsErrorEl) {
+        statsErrorEl.textContent = res.status === 401 ? 'Немає доступу (перевір пароль у змінних середовища на сервері).' : 'Не вдалося завантажити статистику.';
+        statsErrorEl.style.display = 'block';
+      }
       return;
     }
     const data = await res.json();
@@ -33,6 +40,10 @@ async function loadAdminStats() {
     statPageVisits.textContent = '—';
     statUnique.textContent = '—';
     statCron.textContent = '—';
+    if (statsErrorEl) {
+      statsErrorEl.textContent = 'Помилка мережі або не той URL.';
+      statsErrorEl.style.display = 'block';
+    }
   }
 }
 

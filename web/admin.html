@@ -30,7 +30,8 @@
 
     <section id="admin-stats" class="admin-section" style="display: none;">
       <h2>Статистика відвідувань</h2>
-      <p class="admin-stat-hint">Заходи на головну сторінку (розклад). Запити cron до <code>/api/health</code> не входять у ці лічильники.</p>
+      <p id="admin-stats-error" class="admin-message error" style="display: none;"></p>
+      <p class="admin-stat-hint">Рахуємо відкриття додатку (після завантаження сторінки). Запити cron до <code>/api/health</code> не входять у заходи та унікальних.</p>
       <div class="admin-stats-grid">
         <div class="admin-stat-card">
           <div id="stat-page-visits" class="admin-stat-value">—</div>
