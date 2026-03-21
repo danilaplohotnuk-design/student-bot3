@@ -1012,12 +1012,28 @@ async function openAddPairFormModal(lessonOrNull) {
     const title = (subjectSelect?.value ?? '').trim();
     const timeValSel =
       overlay.querySelector('.time-panel.building-panel--selected')?.dataset.time ?? '';
+    /* Тільки панелі 1/2/3 — не плутати з .time-panel, у яких теж клас building-panel */
     const building =
-      overlay.querySelector('.building-panel.building-panel--selected')?.dataset.building?.trim() ?? '';
+      buildingPanels?.querySelector('.building-panel--selected')?.dataset.building?.trim() ?? '';
     const room = roomInput.value.trim();
     errorEl.style.display = 'none';
-    if (!title || !timeValSel || !building || !room) {
-      errorEl.textContent = 'Заповніть усі поля';
+    if (!title) {
+      errorEl.textContent = 'Оберіть предмет';
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (!timeValSel) {
+      errorEl.textContent = 'Оберіть час пари';
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (!building) {
+      errorEl.textContent = 'Оберіть корпус (1, 2 або 3)';
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (!room) {
+      errorEl.textContent = 'Введіть аудиторію';
       errorEl.style.display = 'block';
       return;
     }
