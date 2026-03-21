@@ -327,29 +327,26 @@ async function loadSchedule(date) {
 }
 
 function appendEmptySlotCard(date, slot) {
+  /* У режимі перегляду вільні слоти не показуємо — список пар зсувається вгору */
+  if (!adminMode) return;
+
   const card = document.createElement('div');
-  card.className = adminMode
-    ? 'lesson-card lesson-card--empty'
-    : 'lesson-card lesson-card--empty lesson-card--empty-muted';
+  card.className = 'lesson-card lesson-card--empty';
   card.dataset.date = date;
   card.dataset.startTime = slot.startTime;
   card.dataset.endTime = slot.endTime;
 
   const label = document.createElement('p');
   label.className = 'lesson-empty-label';
-  if (adminMode) {
-    label.appendChild(document.createTextNode('Додати пару'));
-    const timeEl = document.createElement('span');
-    timeEl.className = 'lesson-empty-time';
-    timeEl.textContent = slot.label;
-    label.appendChild(timeEl);
-  } else {
-    label.textContent = slot.label;
-  }
+  label.appendChild(document.createTextNode('Додати пару'));
+  const timeEl = document.createElement('span');
+  timeEl.className = 'lesson-empty-time';
+  timeEl.textContent = slot.label;
+  label.appendChild(timeEl);
   card.appendChild(label);
 
-  if (adminMode) {
-    card.addEventListener('click', () => {
+  card.addEventListener('click', () => {
+    runAdminUiAction(() => {
       openAddPairFormModal({
         startTime: slot.startTime,
         endTime: slot.endTime,
@@ -360,7 +357,7 @@ function appendEmptySlotCard(date, slot) {
         date,
       });
     });
-  }
+  });
 
   scheduleContainer.appendChild(card);
 }
@@ -459,8 +456,10 @@ function appendLessonCard(date, lesson) {
   `;
   btnReplace.addEventListener('click', (e) => {
     e.stopPropagation();
-    closeAllLessonSwipes();
-    openAddPairFormModal(lesson);
+    runAdminUiAction(() => {
+      closeAllLessonSwipes();
+      openAddPairFormModal(lesson);
+    });
   });
 
   const btnDelete = document.createElement('button');
@@ -474,8 +473,10 @@ function appendLessonCard(date, lesson) {
   `;
   btnDelete.addEventListener('click', (e) => {
     e.stopPropagation();
-    closeAllLessonSwipes();
-    confirmDeletePair(lesson);
+    runAdminUiAction(() => {
+      closeAllLessonSwipes();
+      confirmDeletePair(lesson);
+    });
   });
 
   actions.appendChild(btnReplace);
@@ -539,7 +540,24 @@ let storedAdminPassword = '';
 /** Після 8 тапів по версії та вірного пароля — свайп на парах і «Додати пару» на вільних слотах */
 let adminMode = false;
 
-const SWIPE_ACTIONS_WIDTH = 180;
+/** Захист від випадкових подвійних натискань у режимі адміна (мс) */
+const ADMIN_UI_COOLDOWN_MS = 450;
+let lastAdminUiTapAt = 0;
+
+/**
+ * Виконати дію лише в режимі адміна й не частіше за ADMIN_UI_COOLDOWN_MS.
+ */
+function runAdminUiAction(fn) {
+  if (!adminMode) return;
+  const now = Date.now();
+  if (now - lastAdminUiTapAt < ADMIN_UI_COOLDOWN_MS) return;
+  lastAdminUiTapAt = now;
+  fn();
+}
+
+/** Ширина зони дій справа (дві кнопки + відступи) — узгоджувати з CSS */
+const SWIPE_ACTIONS_WIDTH = 200;
+const SWIPE_TRANSITION = 'transform 0.22s cubic-bezier(0.25, 0.8, 0.25, 1)';
 
 function closeModals() {
   const overlay = document.getElementById('schedule-modal-overlay');
@@ -548,6 +566,7 @@ function closeModals() {
 
 function closeAllLessonSwipes() {
   document.querySelectorAll('.lesson-card--swipe-front').forEach((el) => {
+    el.style.transition = SWIPE_TRANSITION;
     el.style.transform = 'translateX(0)';
   });
 }
@@ -563,6 +582,7 @@ function syncAdminChrome() {
 function exitAdminMode() {
   adminMode = false;
   storedAdminPassword = '';
+  lastAdminUiTapAt = 0;
   closeModals();
   closeAllLessonSwipes();
   syncAdminChrome();
@@ -579,6 +599,7 @@ function attachSwipeToLessonFront(front, maxW) {
     'touchstart',
     (e) => {
       closeAllLessonSwipes();
+      front.style.transition = 'none';
       const m = front.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
       lastTx = m ? parseFloat(m[1], 10) : 0;
       startX = e.touches[0].clientX;
@@ -607,8 +628,20 @@ function attachSwipeToLessonFront(front, maxW) {
       const dx = e.changedTouches[0].clientX - startX;
       const x = lastTx + dx;
       const finalX = x < -maxW / 2 ? -maxW : 0;
+      front.style.transition = SWIPE_TRANSITION;
       front.style.transform = `translateX(${finalX}px)`;
       front.dataset.skipZoomClick = Math.abs(dx) > 14 ? '1' : '0';
+    },
+    { passive: true },
+  );
+
+  front.addEventListener(
+    'touchcancel',
+    () => {
+      if (!active) return;
+      active = false;
+      front.style.transition = SWIPE_TRANSITION;
+      front.style.transform = 'translateX(0)';
     },
     { passive: true },
   );
@@ -678,6 +711,7 @@ function openPasswordModal(lessonOrNull, options = {}) {
         closeModals();
         if (mode === 'secretVersion') {
           adminMode = true;
+          lastAdminUiTapAt = 0;
           closeAllLessonSwipes();
           syncAdminChrome();
           if (currentScheduleDate) loadSchedule(currentScheduleDate);
@@ -926,7 +960,7 @@ if (versionSecretBtn) {
 
 const adminExitBtn = document.getElementById('admin-exit-btn');
 if (adminExitBtn) {
-  adminExitBtn.addEventListener('click', () => exitAdminMode());
+  adminExitBtn.addEventListener('click', () => runAdminUiAction(() => exitAdminMode()));
 }
 
 syncAdminChrome();

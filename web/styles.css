@@ -400,27 +400,22 @@ body.admin-mode .app-header-inner {
   margin-top: 6px;
 }
 
-/* Вільний слот без режиму адміна — лише час, без «Додати пару» */
-.lesson-card--empty-muted {
-  border-color: var(--border);
-  opacity: 0.72;
-  cursor: default;
-  min-height: 72px;
+/* Режим адміна: менше випадкових подвійних спрацьовувань */
+body.admin-mode .lesson-card--empty,
+body.admin-mode .lesson-card-swipe-wrap {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.lesson-card--empty-muted:hover {
-  border-color: var(--border);
-  background: transparent;
+body.admin-mode .lesson-swipe-btn,
+body.admin-mode .admin-exit-btn {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.lesson-card--empty-muted .lesson-empty-label {
-  font-weight: 500;
-  font-size: 0.875rem;
-  color: var(--text-dim);
-  margin: 0;
-}
-
-/* Свайп пари (режим адміна): Замінити / Видалити */
+/* Свайп пари (режим адміна): дії «випливають» справа, без суцільної підкладки */
 .lesson-card-swipe-wrap {
   position: relative;
   border-radius: var(--radius);
@@ -430,46 +425,58 @@ body.admin-mode .app-header-inner {
 .lesson-card-swipe-actions {
   position: absolute;
   inset: 0 0 0 auto;
-  width: 180px;
+  width: 200px;
   display: flex;
   flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px 8px 6px;
   z-index: 0;
+  background: transparent;
+  pointer-events: none;
 }
 
 .lesson-swipe-btn {
   flex: 1;
   min-width: 0;
-  border: none;
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   margin: 0;
-  padding: 10px 6px;
+  padding: 10px 4px;
+  border-radius: var(--radius-sm);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: 0.02em;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.96);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
 }
 
 .lesson-swipe-btn--replace {
-  background: #f97316;
+  background: rgba(249, 115, 22, 0.55);
 }
 
 .lesson-swipe-btn--replace:active {
-  background: #ea580c;
+  background: rgba(234, 88, 12, 0.72);
 }
 
 .lesson-swipe-btn--delete {
-  background: #ef4444;
+  background: rgba(239, 68, 68, 0.55);
 }
 
 .lesson-swipe-btn--delete:active {
-  background: #dc2626;
+  background: rgba(220, 38, 38, 0.72);
 }
 
 .lesson-swipe-icon {
