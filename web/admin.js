@@ -4,22 +4,70 @@ const passwordInput = document.getElementById('admin-password');
 const loginBtn = document.getElementById('admin-login-btn');
 const statusEl = document.getElementById('admin-status');
 const adminForm = document.getElementById('admin-form');
+const adminStatsSection = document.getElementById('admin-stats');
 const msgEl = document.getElementById('admin-message');
+const statPageVisits = document.getElementById('stat-page-visits');
+const statUnique = document.getElementById('stat-unique');
+const statCron = document.getElementById('stat-cron');
+const statsRefreshBtn = document.getElementById('admin-stats-refresh');
 
 let adminPassword = '';
 
-loginBtn.addEventListener('click', () => {
+async function loadAdminStats() {
+  if (!adminPassword) return;
+  try {
+    const res = await fetch('/api/admin/stats', {
+      headers: { 'x-admin-password': adminPassword },
+    });
+    if (!res.ok) {
+      statPageVisits.textContent = '—';
+      statUnique.textContent = '—';
+      statCron.textContent = '—';
+      return;
+    }
+    const data = await res.json();
+    statPageVisits.textContent = String(data.pageVisits ?? 0);
+    statUnique.textContent = String(data.uniqueVisitors ?? 0);
+    statCron.textContent = String(data.healthPingsCron ?? 0);
+  } catch (_) {
+    statPageVisits.textContent = '—';
+    statUnique.textContent = '—';
+    statCron.textContent = '—';
+  }
+}
+
+loginBtn.addEventListener('click', async () => {
   const value = passwordInput.value.trim();
   if (!value) {
     statusEl.textContent = 'Введіть пароль.';
     statusEl.className = 'admin-status error';
     return;
   }
+  try {
+    const check = await fetch('/api/admin/check', {
+      headers: { 'x-admin-password': value },
+    });
+    if (!check.ok) {
+      statusEl.textContent = 'Невірний пароль.';
+      statusEl.className = 'admin-status error';
+      adminStatsSection.style.display = 'none';
+      adminForm.style.display = 'none';
+      return;
+    }
+  } catch (_) {
+    statusEl.textContent = 'Помилка зʼєднання.';
+    statusEl.className = 'admin-status error';
+    return;
+  }
   adminPassword = value;
   statusEl.textContent = 'Успішно. Можна додавати пари.';
   statusEl.className = 'admin-status success';
+  adminStatsSection.style.display = 'block';
   adminForm.style.display = 'block';
+  await loadAdminStats();
 });
+
+statsRefreshBtn.addEventListener('click', () => loadAdminStats());
 
 const dateInput = document.getElementById('date');
 const startInput = document.getElementById('startTime');

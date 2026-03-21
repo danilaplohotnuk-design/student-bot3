@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { getScheduleByDate, schedule } from './schedule.js';
 import { getZoomLink } from './zoom-links.js';
+import { recordPageVisit, recordHealthPing, getStats } from './stats.js';
 
 dotenv.config();
 
@@ -102,6 +103,16 @@ if (RUN_BOT) {
 // --------- Express: фронтенд і API ---------
 app.use(express.json());
 
+// Підрахунок заходів на головну сторінку (не API, не cron /api/health)
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
+  const p = req.path || '';
+  if (p === '/' || p === '/index.html') {
+    recordPageVisit(req);
+  }
+  next();
+});
+
 // Віддавати статичні файли з папки web (вона в тому ж корені, що й index.js)
 app.use(express.static(path.join(__dirname, 'web')));
 
@@ -109,6 +120,7 @@ app.use(express.static(path.join(__dirname, 'web')));
 
 // GET /api/health — для cron-job.org (keep-alive / перевірка доступності)
 app.get('/api/health', (req, res) => {
+  recordHealthPing();
   res.status(200).json({ ok: true });
 });
 
@@ -157,6 +169,11 @@ function requireAdmin(req, res, next) {
 // Перевірка пароля (для форми зміни пари в додатку)
 app.get('/api/admin/check', requireAdmin, (req, res) => {
   res.json({ ok: true });
+});
+
+// Статистика відвідувань (заходи на головну; окремо — ping cron до /api/health)
+app.get('/api/admin/stats', requireAdmin, (req, res) => {
+  res.json(getStats());
 });
 
 // Додати пару

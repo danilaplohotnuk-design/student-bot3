@@ -28,6 +28,26 @@
       <p id="admin-status" class="admin-status"></p>
     </section>
 
+    <section id="admin-stats" class="admin-section" style="display: none;">
+      <h2>Статистика відвідувань</h2>
+      <p class="admin-stat-hint">Заходи на головну сторінку (розклад). Запити cron до <code>/api/health</code> не входять у ці лічильники.</p>
+      <div class="admin-stats-grid">
+        <div class="admin-stat-card">
+          <div id="stat-page-visits" class="admin-stat-value">—</div>
+          <div class="admin-stat-label">Загальна кількість заходів</div>
+        </div>
+        <div class="admin-stat-card">
+          <div id="stat-unique" class="admin-stat-value">—</div>
+          <div class="admin-stat-label">Унікальні відвідувачі</div>
+        </div>
+        <div class="admin-stat-card" style="grid-column: 1 / -1;">
+          <div id="stat-cron" class="admin-stat-value">—</div>
+          <div class="admin-stat-label">Ping cron (keep-alive) до /api/health</div>
+        </div>
+      </div>
+      <button type="button" id="admin-stats-refresh" class="btn-secondary">Оновити</button>
+    </section>
+
     <section id="admin-form" class="admin-section" style="display: none;">
       <h2>Додати пару</h2>
       <div class="form-row">
