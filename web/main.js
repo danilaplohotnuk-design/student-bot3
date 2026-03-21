@@ -8,6 +8,86 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+const CYLINDER_ITEM_PX = 44;
+
+/**
+ * Колесо вибору з ефектом обертання по циліндру (scroll + rotateX).
+ */
+function setupCylinderWheel(container, items, initialValue) {
+  const list = container.querySelector('.cylinder-wheel__list');
+  const viewport = container.querySelector('.cylinder-wheel__viewport');
+  if (!list || !viewport || !items.length) return;
+
+  list.innerHTML = items
+    .map(
+      (it) =>
+        `<li class="cylinder-wheel__item" role="option" data-value="${escapeHtml(it.value)}"><span class="cylinder-wheel__item-text">${escapeHtml(it.label)}</span></li>`,
+    )
+    .join('');
+
+  const vh = viewport.clientHeight || 200;
+  const pad = Math.max(0, (vh - CYLINDER_ITEM_PX) / 2);
+  list.style.paddingTop = `${pad}px`;
+  list.style.paddingBottom = `${pad}px`;
+
+  let idx = items.findIndex((i) => i.value === initialValue);
+  if (idx < 0) idx = 0;
+  container.dataset.selectedValue = items[idx].value;
+
+  const applyCylinderTransforms = () => {
+    const mid = viewport.getBoundingClientRect().top + viewport.clientHeight / 2;
+    list.querySelectorAll('.cylinder-wheel__item').forEach((item) => {
+      const r = item.getBoundingClientRect();
+      const ic = r.top + r.height / 2;
+      const delta = (ic - mid) / CYLINDER_ITEM_PX;
+      const rotateX = Math.max(-58, Math.min(58, -delta * 28));
+      const scale = 1 - Math.min(0.14, Math.abs(delta) * 0.055);
+      const op = 1 - Math.min(0.58, Math.abs(delta) * 0.2);
+      item.style.transform = `rotateX(${rotateX}deg) scale(${scale})`;
+      item.style.opacity = String(Math.max(0.28, op));
+    });
+  };
+
+  const syncSelectionFromScroll = () => {
+    const mid = viewport.getBoundingClientRect().top + viewport.clientHeight / 2;
+    let best = 0;
+    let bestDist = Infinity;
+    list.querySelectorAll('.cylinder-wheel__item').forEach((item, i) => {
+      const r = item.getBoundingClientRect();
+      const ic = r.top + r.height / 2;
+      const d = Math.abs(ic - mid);
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    });
+    if (items[best]) {
+      container.dataset.selectedValue = items[best].value;
+    }
+    applyCylinderTransforms();
+  };
+
+  list.addEventListener(
+    'scroll',
+    () => {
+      requestAnimationFrame(syncSelectionFromScroll);
+    },
+    { passive: true },
+  );
+
+  const scrollToIndex = (index) => {
+    const i = Math.max(0, Math.min(items.length - 1, index));
+    list.scrollTop = i * CYLINDER_ITEM_PX;
+  };
+
+  requestAnimationFrame(() => {
+    scrollToIndex(idx);
+    requestAnimationFrame(() => {
+      syncSelectionFromScroll();
+    });
+  });
+}
+
 if (tg) {
   tg.expand();
   tg.enableClosingConfirmation();
@@ -865,23 +945,39 @@ async function openAddPairFormModal(lessonOrNull) {
 
   const overlay = document.createElement('div');
   overlay.id = 'schedule-modal-overlay';
-  overlay.className = 'modal-overlay';
+  overlay.className = 'modal-overlay modal-overlay--pair';
+
+  const subjectItems = [{ value: '', label: 'Оберіть предмет' }, ...subjects.map((s) => ({ value: s, label: s }))];
+  const subjectInitial = lessonOrNull?.title != null ? String(lessonOrNull.title) : '';
+  const timeItems = TIME_SLOTS.map((t) => ({
+    value: `${t.startTime}|${t.endTime}`,
+    label: t.label,
+  }));
+
   overlay.innerHTML = `
-    <div class="modal-box modal-form">
+    <div class="modal-box modal-form modal-pair-glass">
       <h3 class="modal-title">${isEdit ? 'Зміна пари' : 'Додати пару'}</h3>
       <p class="modal-hint">${isEdit ? 'Змінити пару на ' : 'Додати пару на '}${currentScheduleDate}</p>
-      <label class="modal-label">Предмет</label>
-      <select id="modal-subject" class="modal-select">
-        <option value="">Оберіть предмет</option>
-        ${subjects.map((s) => `<option value="${escapeHtml(s)}"${lessonOrNull && s === lessonOrNull.title ? ' selected' : ''}>${escapeHtml(s)}</option>`).join('')}
-      </select>
-      <label class="modal-label">Час</label>
-      <select id="modal-time" class="modal-select">
-        ${TIME_SLOTS.map((t) => {
-          const val = `${t.startTime}|${t.endTime}`;
-          return `<option value="${val}"${timeVal === val ? ' selected' : ''}>${t.label}</option>`;
-        }).join('')}
-      </select>
+      <div class="pair-wheels" role="group" aria-label="Предмет і час">
+        <div class="cylinder-wheel" id="modal-subject-cylinder" data-selected-value="">
+          <div class="cylinder-wheel__caption">Предмет</div>
+          <div class="cylinder-wheel__viewport">
+            <div class="cylinder-wheel__shade cylinder-wheel__shade--top" aria-hidden="true"></div>
+            <div class="cylinder-wheel__shade cylinder-wheel__shade--bottom" aria-hidden="true"></div>
+            <div class="cylinder-wheel__ring" aria-hidden="true"></div>
+            <ul class="cylinder-wheel__list" role="listbox"></ul>
+          </div>
+        </div>
+        <div class="cylinder-wheel" id="modal-time-cylinder" data-selected-value="">
+          <div class="cylinder-wheel__caption">Час</div>
+          <div class="cylinder-wheel__viewport">
+            <div class="cylinder-wheel__shade cylinder-wheel__shade--top" aria-hidden="true"></div>
+            <div class="cylinder-wheel__shade cylinder-wheel__shade--bottom" aria-hidden="true"></div>
+            <div class="cylinder-wheel__ring" aria-hidden="true"></div>
+            <ul class="cylinder-wheel__list" role="listbox"></ul>
+          </div>
+        </div>
+      </div>
       <label class="modal-label">Корпус</label>
       <input type="text" id="modal-building" class="modal-input" placeholder="Наприклад: 2" value="${lessonOrNull?.building ? String(lessonOrNull.building).replace(/"/g, '&quot;') : ''}" />
       <label class="modal-label">Аудиторія</label>
@@ -895,8 +991,11 @@ async function openAddPairFormModal(lessonOrNull) {
   `;
   document.body.appendChild(overlay);
 
-  const subjectSelect = overlay.querySelector('#modal-subject');
-  const timeSelect = overlay.querySelector('#modal-time');
+  const subjectCylinder = overlay.querySelector('#modal-subject-cylinder');
+  const timeCylinder = overlay.querySelector('#modal-time-cylinder');
+  setupCylinderWheel(subjectCylinder, subjectItems, subjectInitial);
+  setupCylinderWheel(timeCylinder, timeItems, timeVal);
+
   const buildingInput = overlay.querySelector('#modal-building');
   const roomInput = overlay.querySelector('#modal-room');
   const errorEl = overlay.querySelector('#modal-form-error');
@@ -909,8 +1008,8 @@ async function openAddPairFormModal(lessonOrNull) {
   });
 
   overlay.querySelector('[data-action="add"]').addEventListener('click', async () => {
-    const title = subjectSelect.value.trim();
-    const timeValSel = timeSelect.value;
+    const title = (subjectCylinder?.dataset.selectedValue ?? '').trim();
+    const timeValSel = timeCylinder?.dataset.selectedValue ?? '';
     const building = buildingInput.value.trim();
     const room = roomInput.value.trim();
     errorEl.style.display = 'none';
