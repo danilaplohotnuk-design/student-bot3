@@ -12,7 +12,12 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app-shell">
+  <div class="app-shell" id="app-shell">
+    <div id="admin-exit-strip" class="admin-exit-strip" hidden>
+      <button type="button" id="admin-exit-btn" class="admin-exit-btn" aria-label="Вийти з режиму редагування">
+        <span class="admin-exit-x" aria-hidden="true">×</span>
+      </button>
+    </div>
     <header class="app-header">
       <div class="app-header-inner">
         <h1 class="app-title">Розклад</h1>
@@ -30,6 +35,11 @@
         <button type="button" id="tomorrow-btn" class="btn-quick">Завтра</button>
       </div>
     </section>
+
+    <div id="admin-mode-banner" class="admin-mode-banner" hidden>
+      <p class="admin-mode-banner-title">Режим редагування</p>
+      <div class="admin-mode-banner-rule" aria-hidden="true"></div>
+    </div>
 
     <main id="schedule" class="schedule-list"></main>
 

@@ -328,83 +328,55 @@ async function loadSchedule(date) {
 
 function appendEmptySlotCard(date, slot) {
   const card = document.createElement('div');
-  card.className = 'lesson-card lesson-card--empty';
+  card.className = adminMode
+    ? 'lesson-card lesson-card--empty'
+    : 'lesson-card lesson-card--empty lesson-card--empty-muted';
   card.dataset.date = date;
   card.dataset.startTime = slot.startTime;
   card.dataset.endTime = slot.endTime;
 
   const label = document.createElement('p');
   label.className = 'lesson-empty-label';
-  label.textContent = 'Додати пару';
-  const timeEl = document.createElement('span');
-  timeEl.className = 'lesson-empty-time';
-  timeEl.textContent = slot.label;
-  label.appendChild(timeEl);
+  if (adminMode) {
+    label.appendChild(document.createTextNode('Додати пару'));
+    const timeEl = document.createElement('span');
+    timeEl.className = 'lesson-empty-time';
+    timeEl.textContent = slot.label;
+    label.appendChild(timeEl);
+  } else {
+    label.textContent = slot.label;
+  }
   card.appendChild(label);
 
-  card.addEventListener('click', () => {
-    openPasswordModal({
-      isEmptySlot: true,
-      date,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
+  if (adminMode) {
+    card.addEventListener('click', () => {
+      openAddPairFormModal({
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        title: null,
+        teacher: null,
+        building: '',
+        room: '',
+        date,
+      });
     });
-  });
+  }
 
   scheduleContainer.appendChild(card);
 }
 
-function appendLessonCard(date, lesson) {
-  const card = document.createElement('div');
-  card.className = 'lesson-card lesson-card--clickable';
-  card.dataset.date = date;
-  card.dataset.startTime = lesson.startTime;
-  card.dataset.endTime = lesson.endTime || '';
-  card.dataset.title = lesson.title;
-  card.dataset.teacher = lesson.teacher || '';
-  card.dataset.building = lesson.building || '';
-  card.dataset.room = lesson.room || '';
-
-  const title = document.createElement('h2');
-  title.className = 'lesson-title';
-  title.textContent = lesson.title;
-
-  const meta = document.createElement('div');
-  meta.className = 'lesson-meta';
-
-  const time = document.createElement('div');
-  time.className = 'lesson-time';
-  time.textContent = `${lesson.startTime} — ${lesson.endTime}`;
-  meta.appendChild(time);
-
-  if (lesson.teacher) {
-    const teacherEl = document.createElement('div');
-    teacherEl.className = 'lesson-teacher';
-    teacherEl.textContent = lesson.teacher;
-    meta.appendChild(teacherEl);
-  }
-
-  const place = document.createElement('div');
-  place.className = 'lesson-place';
-  place.textContent = `Корпус ${lesson.building}, ауд. ${lesson.room}`;
-  meta.appendChild(place);
-
-  const zoomHint = document.createElement('div');
-  zoomHint.className = 'lesson-zoom-hint';
-  zoomHint.textContent = 'Натисни двічі для посилання в Zoom';
-
-  card.appendChild(title);
-  card.appendChild(meta);
-  card.appendChild(zoomHint);
-  scheduleContainer.appendChild(card);
-
-  card.addEventListener('click', () => {
-    const key = `${card.dataset.date}|${card.dataset.startTime}|${card.dataset.title}`;
+function attachLessonZoomDoubleTap(cardEl) {
+  cardEl.addEventListener('click', () => {
+    if (cardEl.dataset.skipZoomClick === '1') {
+      delete cardEl.dataset.skipZoomClick;
+      return;
+    }
+    const key = `${cardEl.dataset.date}|${cardEl.dataset.startTime}|${cardEl.dataset.title}`;
     if (zoomPendingKey === key && zoomPendingTimer !== null) {
       clearTimeout(zoomPendingTimer);
       zoomPendingTimer = null;
       zoomPendingKey = null;
-      openOrCopyZoomLink(card);
+      openOrCopyZoomLink(cardEl);
       return;
     }
     if (zoomPendingTimer) clearTimeout(zoomPendingTimer);
@@ -415,6 +387,110 @@ function appendLessonCard(date, lesson) {
       zoomPendingKey = null;
     }, ZOOM_DOUBLE_TAP_MS);
   });
+}
+
+function appendLessonCard(date, lesson) {
+  const fillLessonCardContent = (card) => {
+    card.dataset.date = date;
+    card.dataset.startTime = lesson.startTime;
+    card.dataset.endTime = lesson.endTime || '';
+    card.dataset.title = lesson.title;
+    card.dataset.teacher = lesson.teacher || '';
+    card.dataset.building = lesson.building || '';
+    card.dataset.room = lesson.room || '';
+
+    const title = document.createElement('h2');
+    title.className = 'lesson-title';
+    title.textContent = lesson.title;
+
+    const meta = document.createElement('div');
+    meta.className = 'lesson-meta';
+
+    const time = document.createElement('div');
+    time.className = 'lesson-time';
+    time.textContent = `${lesson.startTime} — ${lesson.endTime}`;
+    meta.appendChild(time);
+
+    if (lesson.teacher) {
+      const teacherEl = document.createElement('div');
+      teacherEl.className = 'lesson-teacher';
+      teacherEl.textContent = lesson.teacher;
+      meta.appendChild(teacherEl);
+    }
+
+    const place = document.createElement('div');
+    place.className = 'lesson-place';
+    place.textContent = `Корпус ${lesson.building}, ауд. ${lesson.room}`;
+    meta.appendChild(place);
+
+    const zoomHint = document.createElement('div');
+    zoomHint.className = 'lesson-zoom-hint';
+    zoomHint.textContent = 'Натисни двічі для посилання в Zoom';
+
+    card.appendChild(title);
+    card.appendChild(meta);
+    card.appendChild(zoomHint);
+  };
+
+  if (!adminMode) {
+    const card = document.createElement('div');
+    card.className = 'lesson-card lesson-card--clickable';
+    fillLessonCardContent(card);
+    scheduleContainer.appendChild(card);
+    attachLessonZoomDoubleTap(card);
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'lesson-card-swipe-wrap';
+
+  const actions = document.createElement('div');
+  actions.className = 'lesson-card-swipe-actions';
+  actions.setAttribute('aria-hidden', 'true');
+
+  const btnReplace = document.createElement('button');
+  btnReplace.type = 'button';
+  btnReplace.className = 'lesson-swipe-btn lesson-swipe-btn--replace';
+  btnReplace.innerHTML = `
+    <svg class="lesson-swipe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/>
+    </svg>
+    <span class="lesson-swipe-label">Замінити</span>
+  `;
+  btnReplace.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeAllLessonSwipes();
+    openAddPairFormModal(lesson);
+  });
+
+  const btnDelete = document.createElement('button');
+  btnDelete.type = 'button';
+  btnDelete.className = 'lesson-swipe-btn lesson-swipe-btn--delete';
+  btnDelete.innerHTML = `
+    <svg class="lesson-swipe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/>
+    </svg>
+    <span class="lesson-swipe-label">Видалити</span>
+  `;
+  btnDelete.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeAllLessonSwipes();
+    confirmDeletePair(lesson);
+  });
+
+  actions.appendChild(btnReplace);
+  actions.appendChild(btnDelete);
+
+  const front = document.createElement('div');
+  front.className = 'lesson-card lesson-card--clickable lesson-card--swipe-front';
+  fillLessonCardContent(front);
+
+  attachSwipeToLessonFront(front, SWIPE_ACTIONS_WIDTH);
+  attachLessonZoomDoubleTap(front);
+
+  wrap.appendChild(actions);
+  wrap.appendChild(front);
+  scheduleContainer.appendChild(wrap);
 }
 
 function renderSchedule(date, lessons) {
@@ -460,82 +536,82 @@ function showToast(message) {
 
 // --------- Модалки: пароль і форма зміни пари ---------
 let storedAdminPassword = '';
+/** Після 8 тапів по версії та вірного пароля — свайп на парах і «Додати пару» на вільних слотах */
+let adminMode = false;
+
+const SWIPE_ACTIONS_WIDTH = 180;
 
 function closeModals() {
   const overlay = document.getElementById('schedule-modal-overlay');
   if (overlay) overlay.remove();
 }
 
-function closeAdminQuickPanel() {
-  const el = document.getElementById('admin-quick-overlay');
-  if (el) el.remove();
+function closeAllLessonSwipes() {
+  document.querySelectorAll('.lesson-card--swipe-front').forEach((el) => {
+    el.style.transform = 'translateX(0)';
+  });
 }
 
-function attachPanelSwipeLeftDismiss(panelEl, onClose) {
-  let startX = 0;
-  let tracking = false;
-  panelEl.addEventListener('touchstart', (e) => {
-    tracking = true;
-    startX = e.touches[0].clientX;
-  }, { passive: true });
-  panelEl.addEventListener('touchmove', (e) => {
-    if (!tracking) return;
-    const dx = e.touches[0].clientX - startX;
-    if (dx < 0) panelEl.style.transform = `translateX(${Math.max(-160, dx)}px)`;
-  }, { passive: true });
-  panelEl.addEventListener('touchend', (e) => {
-    if (!tracking) return;
-    tracking = false;
-    const endX = e.changedTouches[0].clientX;
-    const dx = endX - startX;
-    panelEl.style.transform = '';
-    if (dx < -56) onClose();
-  }, { passive: true });
+function syncAdminChrome() {
+  document.body.classList.toggle('admin-mode', adminMode);
+  const strip = document.getElementById('admin-exit-strip');
+  const banner = document.getElementById('admin-mode-banner');
+  if (strip) strip.hidden = !adminMode;
+  if (banner) banner.hidden = !adminMode;
 }
 
-function showAdminQuickPanel() {
-  closeAdminQuickPanel();
+function exitAdminMode() {
+  adminMode = false;
+  storedAdminPassword = '';
   closeModals();
-  const overlay = document.createElement('div');
-  overlay.id = 'admin-quick-overlay';
-  overlay.className = 'admin-quick-overlay';
-  overlay.innerHTML = `
-    <div class="admin-quick-panel" id="admin-quick-panel">
-      <div class="admin-quick-header">
-        <span class="admin-quick-title">Швидкі дії</span>
-        <button type="button" class="admin-quick-close-square" aria-label="Закрити"><span class="admin-quick-close-x" aria-hidden="true">×</span></button>
-      </div>
-      <div class="admin-quick-chat" id="admin-quick-chat">
-        <div class="admin-quick-msg admin-quick-msg--system">Редагування лише звідси. Змахніть панель вліво, щоб закрити.</div>
-        <div class="admin-quick-row" data-action="add">Додати / змінити пару</div>
-        <div class="admin-quick-row" data-action="restore">Відновити весь розклад</div>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
+  closeAllLessonSwipes();
+  syncAdminChrome();
+  showToast('Режим редагування вимкнено');
+  if (currentScheduleDate) loadSchedule(currentScheduleDate);
+}
 
-  const panel = overlay.querySelector('#admin-quick-panel');
-  const close = () => closeAdminQuickPanel();
+function attachSwipeToLessonFront(front, maxW) {
+  let startX = 0;
+  let lastTx = 0;
+  let active = false;
 
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) close();
-  });
-  overlay.querySelector('.admin-quick-close-square').addEventListener('click', close);
+  front.addEventListener(
+    'touchstart',
+    (e) => {
+      closeAllLessonSwipes();
+      const m = front.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
+      lastTx = m ? parseFloat(m[1], 10) : 0;
+      startX = e.touches[0].clientX;
+      active = true;
+    },
+    { passive: true },
+  );
 
-  overlay.querySelector('#admin-quick-chat').addEventListener('click', (e) => {
-    const row = e.target.closest('[data-action]');
-    if (!row) return;
-    const action = row.dataset.action;
-    if (action === 'add') {
-      closeAdminQuickPanel();
-      openAddPairFormModal(null);
-    } else if (action === 'restore') {
-      closeAdminQuickPanel();
-      confirmRestoreSchedule();
-    }
-  });
+  front.addEventListener(
+    'touchmove',
+    (e) => {
+      if (!active) return;
+      const dx = e.touches[0].clientX - startX;
+      let x = lastTx + dx;
+      x = Math.max(-maxW, Math.min(0, x));
+      front.style.transform = `translateX(${x}px)`;
+    },
+    { passive: true },
+  );
 
-  attachPanelSwipeLeftDismiss(panel, close);
+  front.addEventListener(
+    'touchend',
+    (e) => {
+      if (!active) return;
+      active = false;
+      const dx = e.changedTouches[0].clientX - startX;
+      const x = lastTx + dx;
+      const finalX = x < -maxW / 2 ? -maxW : 0;
+      front.style.transform = `translateX(${finalX}px)`;
+      front.dataset.skipZoomClick = Math.abs(dx) > 14 ? '1' : '0';
+    },
+    { passive: true },
+  );
 }
 
 const SECRET_TAPS = 8;
@@ -558,7 +634,7 @@ function onVersionSecretTap() {
 }
 
 /**
- * @param {object | null} lessonOrNull — пара або { isEmptySlot, date, startTime, endTime }
+ * @param {object | null} lessonOrNull — зарезервовано (наприклад для майбутніх сценаріїв); пароль перевіряється без прив’язки до пари
  * @param {{ mode?: 'secretVersion' }} [options]
  */
 function openPasswordModal(lessonOrNull, options = {}) {
@@ -601,19 +677,11 @@ function openPasswordModal(lessonOrNull, options = {}) {
         storedAdminPassword = password;
         closeModals();
         if (mode === 'secretVersion') {
-          showAdminQuickPanel();
+          adminMode = true;
+          closeAllLessonSwipes();
+          syncAdminChrome();
+          if (currentScheduleDate) loadSchedule(currentScheduleDate);
           return;
-        }
-        if (lessonOrNull && lessonOrNull.isEmptySlot) {
-          openAddPairFormModal({
-            startTime: lessonOrNull.startTime,
-            endTime: lessonOrNull.endTime,
-            title: null,
-            teacher: null,
-            building: '',
-            room: '',
-            date: lessonOrNull.date,
-          });
         }
       } else {
         errorEl.style.display = 'block';
@@ -629,29 +697,37 @@ function openPasswordModal(lessonOrNull, options = {}) {
   });
 }
 
-function confirmRestoreSchedule() {
-  if (!confirm('Відновити весь розклад до початкового? Усі зміни будуть втрачені.')) return;
-  restoreSchedule().then((ok) => {
-    if (ok) {
-      showToast('Розклад відновлено');
-      if (currentScheduleDate) loadSchedule(currentScheduleDate);
-    } else {
-      showToast('Помилка відновлення');
-    }
-  });
-}
-
-async function restoreSchedule() {
+async function deletePair(lesson) {
   try {
-    const res = await fetch('/api/admin/schedule/restore', {
+    const res = await fetch('/api/admin/schedule/delete', {
       method: 'POST',
-      headers: { 'x-admin-password': storedAdminPassword },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': storedAdminPassword,
+      },
+      body: JSON.stringify({
+        date: currentScheduleDate,
+        startTime: lesson.startTime,
+        title: lesson.title,
+      }),
     });
     const data = await res.json().catch(() => ({}));
     return res.ok && data.ok;
   } catch (_) {
     return false;
   }
+}
+
+function confirmDeletePair(lesson) {
+  if (!confirm('Видалити цю пару?')) return;
+  deletePair(lesson).then((ok) => {
+    if (ok) {
+      showToast('Пару видалено');
+      if (currentScheduleDate) loadSchedule(currentScheduleDate);
+    } else {
+      showToast('Помилка видалення');
+    }
+  });
 }
 
 async function openAddPairFormModal(lessonOrNull) {
@@ -847,3 +923,10 @@ if (versionSecretBtn) {
     onVersionSecretTap();
   });
 }
+
+const adminExitBtn = document.getElementById('admin-exit-btn');
+if (adminExitBtn) {
+  adminExitBtn.addEventListener('click', () => exitAdminMode());
+}
+
+syncAdminChrome();
