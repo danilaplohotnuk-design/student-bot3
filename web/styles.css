@@ -1103,7 +1103,9 @@ body.admin-page .app-shell {
 
 .reminder-popover--edit {
   width: min(360px, calc(100vw - 24px));
-  max-height: min(70vh, 520px);
+  max-height: min(70dvh, 70vh, 520px);
+  overflow: hidden;
+  min-height: 0;
 }
 
 .reminder-popover-root--open .reminder-popover {
@@ -1116,6 +1118,7 @@ body.admin-page .app-shell {
   font-size: 1.0625rem;
   font-weight: 700;
   color: var(--text);
+  flex-shrink: 0;
 }
 
 .reminder-popover__hint {
@@ -1123,11 +1126,26 @@ body.admin-page .app-shell {
   font-size: 0.8125rem;
   color: var(--text-muted);
   line-height: 1.35;
+  flex-shrink: 0;
+}
+
+/* Прокрутка лише в зоні тексту — кнопки не «наїжджають» при клавіатурі */
+.reminder-popover__edit-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .reminder-popover__textarea {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+.reminder-popover--edit .reminder-popover__textarea {
+  flex: none;
+  min-height: 120px;
 }
 
 .reminder-popover__body {
@@ -1145,6 +1163,7 @@ body.admin-page .app-shell {
   margin-top: 12px;
   width: 100%;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .reminder-popover__actions .modal-btn {
@@ -1195,6 +1214,10 @@ body.admin-page .app-shell {
 
 .reminder-popover__field:focus {
   outline: none;
+}
+
+.reminder-popover--edit .reminder-popover__field {
+  max-height: none;
 }
 
 .modal-textarea {

@@ -1218,26 +1218,70 @@ function positionReminderPopover() {
   const btn = document.getElementById('reminder-trigger');
   const pop = document.querySelector('#reminder-popover-root .reminder-popover');
   if (!btn || !pop) return;
-  const r = btn.getBoundingClientRect();
-  const gap = 10;
-  const vh = window.innerHeight;
+
+  const vv = window.visualViewport;
+  const vvTop = vv ? vv.offsetTop : 0;
+  const vvH = vv ? vv.height : window.innerHeight;
   const margin = 12;
+  const gap = 10;
+
+  /* Висота над клавіатурою (Telegram / iOS Safari) */
+  const usableH = Math.max(180, Math.floor(vvH - margin * 2));
+  pop.style.maxHeight = `${usableH}px`;
+
+  const r = btn.getBoundingClientRect();
   pop.style.right = `${Math.round(window.innerWidth - r.right)}px`;
   pop.style.left = 'auto';
   pop.style.bottom = 'auto';
   pop.style.top = `${Math.round(r.bottom + gap)}px`;
-  requestAnimationFrame(() => {
+
+  const clamp = () => {
     const pr = pop.getBoundingClientRect();
-    if (pr.bottom > vh - margin) {
-      const up = Math.max(margin, r.top - gap - pr.height);
-      pop.style.top = `${Math.round(up)}px`;
+    const visibleTop = vvTop + margin;
+    const visibleBottom = vvTop + vvH - margin;
+
+    let newTop = pr.top;
+    if (pr.bottom > visibleBottom) {
+      newTop = Math.max(visibleTop, visibleBottom - pr.height);
     }
+    if (newTop < visibleTop) {
+      newTop = visibleTop;
+    }
+    if (Math.abs(newTop - pr.top) > 0.5) {
+      pop.style.top = `${Math.round(newTop)}px`;
+    }
+
+    const pr2 = pop.getBoundingClientRect();
+    const maxAllowedH = Math.max(160, visibleBottom - pr2.top - margin);
+    if (pr2.height > maxAllowedH) {
+      pop.style.maxHeight = `${Math.floor(maxAllowedH)}px`;
+    }
+  };
+
+  requestAnimationFrame(() => {
+    clamp();
+    requestAnimationFrame(clamp);
   });
+}
+
+function bindReminderPopoverViewport() {
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', positionReminderPopover);
+    window.visualViewport.addEventListener('scroll', positionReminderPopover);
+  }
+}
+
+function unbindReminderPopoverViewport() {
+  if (window.visualViewport) {
+    window.visualViewport.removeEventListener('resize', positionReminderPopover);
+    window.visualViewport.removeEventListener('scroll', positionReminderPopover);
+  }
 }
 
 function closeReminderPopover() {
   window.removeEventListener('keydown', reminderEscapeHandler);
   window.removeEventListener('resize', positionReminderPopover);
+  unbindReminderPopoverViewport();
   reminderPopoverOpen = false;
   const root = document.getElementById('reminder-popover-root');
   if (!root) return;
@@ -1297,6 +1341,7 @@ function openReminderPopover() {
     stale.remove();
     window.removeEventListener('keydown', reminderEscapeHandler);
     window.removeEventListener('resize', positionReminderPopover);
+    unbindReminderPopoverViewport();
   }
   const editable = adminMode;
   const root = document.createElement('div');
@@ -1318,8 +1363,10 @@ function openReminderPopover() {
     panel.innerHTML = `
       <h3 id="reminder-popover-title" class="reminder-popover__title">Нагадування</h3>
       <p class="reminder-popover__hint">Текст побачать усі студенти.</p>
-      <textarea id="reminder-modal-text" class="reminder-popover__textarea reminder-popover__field" rows="6" maxlength="4000" placeholder="Важлива інформація для студентів…"></textarea>
-      <p id="reminder-modal-error" class="modal-error" style="display:none;"></p>
+      <div class="reminder-popover__edit-scroll">
+        <textarea id="reminder-modal-text" class="reminder-popover__textarea reminder-popover__field" rows="6" maxlength="4000" placeholder="Важлива інформація для студентів…"></textarea>
+        <p id="reminder-modal-error" class="modal-error" style="display:none;"></p>
+      </div>
       <div class="reminder-popover__actions">
         <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
         <button type="button" class="modal-btn modal-btn-secondary" data-action="clear">Очистити</button>
@@ -1348,6 +1395,7 @@ function openReminderPopover() {
   panel.addEventListener('click', (e) => e.stopPropagation());
 
   window.addEventListener('resize', positionReminderPopover);
+  bindReminderPopoverViewport();
   window.addEventListener('keydown', reminderEscapeHandler);
 
   reminderPopoverOpen = true;
@@ -1360,7 +1408,14 @@ function openReminderPopover() {
   if (editable) {
     const ta = panel.querySelector('#reminder-modal-text');
     ta.value = reminderText;
-    setTimeout(() => ta.focus(), 0);
+    const reflowAfterKeyboard = () => {
+      requestAnimationFrame(() => positionReminderPopover());
+    };
+    ta.addEventListener('focus', reflowAfterKeyboard);
+    setTimeout(() => {
+      ta.focus();
+      reflowAfterKeyboard();
+    }, 0);
     const err = panel.querySelector('#reminder-modal-error');
 
     panel.querySelector('[data-action="cancel"]').addEventListener('click', closeReminderPopover);
