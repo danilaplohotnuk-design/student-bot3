@@ -1,3 +1,29 @@
+/* Cy Grotesk Grand Dark — заголовок «Розклад», дата, футер (файл: web/fonts/CyGrotesk-GrandDark.otf) */
+@font-face {
+  font-family: 'Cy Grotesk Grand Dark';
+  src: url('fonts/CyGrotesk-GrandDark.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cy Grotesk Grand Dark';
+  src: url('fonts/CyGrotesk-GrandDark.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Grunt Grotesk Bold — текст на картках і панелях (файл: web/fonts/GruntGrotesk-Bold.otf) */
+@font-face {
+  font-family: 'Grunt Grotesk';
+  src: url('fonts/GruntGrotesk-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* === Variables (матове скло / glassmorphism) === */
 :root {
   --bg: #0f1320;
@@ -21,6 +47,10 @@
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.25);
   --font: 'Manrope', system-ui, sans-serif;
+  /* Головний екран: шапка, дата, кнопки, футер */
+  --font-main: 'Cy Grotesk Grand Dark', 'Manrope', system-ui, sans-serif;
+  /* Картки пар, корпус/час у модалці */
+  --font-panel: 'Grunt Grotesk', 'Manrope', system-ui, sans-serif;
 }
 
 * {
@@ -52,6 +82,7 @@ body {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
+  font-family: var(--font-main);
 }
 
 /* Вихід з режиму редагування — одна панель як картка пари; лише для адміна (JS ставить hidden) */
@@ -88,7 +119,7 @@ body:not(.admin-mode) .admin-exit-strip {
   -webkit-backdrop-filter: none;
   color: var(--text);
   cursor: pointer;
-  font-family: var(--font);
+  font-family: var(--font-panel);
   transition: transform 0.12s ease, color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
@@ -258,7 +289,7 @@ body:not(.admin-mode) .admin-exit-strip {
 .date-input {
   width: 100%;
   padding: 14px 16px;
-  font-family: var(--font);
+  font-family: var(--font-main);
   font-size: 1rem;
   font-weight: 500;
   color: var(--text);
@@ -284,7 +315,7 @@ body:not(.admin-mode) .admin-exit-strip {
 
 .btn-quick {
   padding: 14px 16px;
-  font-family: var(--font);
+  font-family: var(--font-main);
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text);
@@ -327,6 +358,7 @@ body:not(.admin-mode) .admin-exit-strip {
 }
 
 .lesson-card {
+  font-family: var(--font-panel);
   background: var(--bg-card);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -346,7 +378,7 @@ body:not(.admin-mode) .admin-exit-strip {
 .lesson-card .lesson-title {
   margin: 0 0 10px;
   font-size: 1.0625rem;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.35;
   color: var(--text);
 }
@@ -359,7 +391,7 @@ body:not(.admin-mode) .admin-exit-strip {
 
 .lesson-card .lesson-time {
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--time);
 }
 
@@ -379,7 +411,7 @@ body:not(.admin-mode) .admin-exit-strip {
   border-top: 1px solid var(--border);
   font-size: 0.8125rem;
   color: var(--accent);
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .lesson-card--clickable {
@@ -413,7 +445,7 @@ body:not(.admin-mode) .admin-exit-strip {
 .lesson-card--empty .lesson-empty-label {
   margin: 0;
   font-size: 0.9375rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-muted);
   text-align: center;
 }
@@ -421,7 +453,7 @@ body:not(.admin-mode) .admin-exit-strip {
 .lesson-card--empty .lesson-empty-time {
   display: block;
   font-size: 0.8125rem;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--text-dim);
   margin-top: 6px;
 }
@@ -479,6 +511,7 @@ body.admin-mode .admin-exit-btn {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  font-family: var(--font-panel);
   font-size: 0.7rem;
   font-weight: 700;
   line-height: 1.15;
@@ -803,7 +836,7 @@ body.admin-page .app-shell {
 
 .btn-bg {
   padding: 8px 14px;
-  font-family: var(--font);
+  font-family: var(--font-main);
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-muted);
@@ -1022,6 +1055,7 @@ body.admin-page .app-shell {
 
 .modal-pair-glass {
   --pair-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  font-family: var(--font-panel);
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
@@ -1038,7 +1072,7 @@ body.admin-page .app-shell {
   text-align: left;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .modal-pair-glass .modal-input--room {
@@ -1057,7 +1091,7 @@ body.admin-page .app-shell {
 .building-panel {
   margin: 0;
   padding: 14px 12px;
-  font-family: var(--font);
+  font-family: var(--font-panel);
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1182,7 +1216,7 @@ body[data-bg-mode="light"] {
 }
 
 body[data-bg-mode="light"] .lesson-card .lesson-title {
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.3;
 }
@@ -1192,7 +1226,7 @@ body[data-bg-mode="light"] .lesson-card .lesson-meta {
 }
 
 body[data-bg-mode="light"] .lesson-card .lesson-time {
-  font-weight: 650;
+  font-weight: 700;
 }
 
 body[data-bg-mode="light"] .date-input,
