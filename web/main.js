@@ -8,7 +8,7 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-const CYLINDER_ITEM_PX = 44;
+const CYLINDER_ITEM_PX = 58;
 
 /**
  * Колесо вибору з ефектом обертання по циліндру (scroll + rotateX).
@@ -41,10 +41,11 @@ function setupCylinderWheel(container, items, initialValue) {
       const ic = r.top + r.height / 2;
       const delta = (ic - mid) / CYLINDER_ITEM_PX;
       const rotateX = Math.max(-58, Math.min(58, -delta * 28));
-      const scale = 1 - Math.min(0.14, Math.abs(delta) * 0.055);
-      const op = 1 - Math.min(0.58, Math.abs(delta) * 0.2);
+      const scale = 1 - Math.min(0.12, Math.abs(delta) * 0.048);
+      /* по краях вертикалі — до повної прозорості, без «підлоги» */
+      const op = Math.max(0, 1 - Math.abs(delta) * 0.42);
       item.style.transform = `rotateX(${rotateX}deg) scale(${scale})`;
-      item.style.opacity = String(Math.max(0.28, op));
+      item.style.opacity = String(op);
     });
   };
 
