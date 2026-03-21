@@ -867,6 +867,17 @@ body.admin-page .app-shell {
   color: var(--text-muted);
 }
 
+.modal-inline-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.modal-inline-link:hover {
+  opacity: 0.9;
+}
+
 .modal-label {
   display: block;
   font-size: 0.8125rem;

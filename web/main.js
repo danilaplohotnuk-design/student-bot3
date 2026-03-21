@@ -97,6 +97,75 @@ function blendHex(hex1, hex2, t) {
   return rgbToHex(r, g, b);
 }
 
+/** HSL для гармонійної палітри (аналог ідеї Coolors, але без їхнього API — його немає для сторонніх сайтів) */
+function rgbToHsl(r, g, b) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r:
+        h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+        break;
+      case g:
+        h = ((b - r) / d + 2) / 6;
+        break;
+      default:
+        h = ((r - g) / d + 4) / 6;
+        break;
+    }
+  }
+  return { h: h * 360, s, l };
+}
+
+function hslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  s = Math.max(0, Math.min(1, s));
+  l = Math.max(0, Math.min(1, l));
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let rp = 0;
+  let gp = 0;
+  let bp = 0;
+  if (h < 60) {
+    rp = c;
+    gp = x;
+  } else if (h < 120) {
+    rp = x;
+    gp = c;
+  } else if (h < 180) {
+    gp = c;
+    bp = x;
+  } else if (h < 240) {
+    gp = x;
+    bp = c;
+  } else if (h < 300) {
+    rp = x;
+    bp = c;
+  } else {
+    rp = c;
+    bp = x;
+  }
+  return {
+    r: Math.round((rp + m) * 255),
+    g: Math.round((gp + m) * 255),
+    b: Math.round((bp + m) * 255),
+  };
+}
+
+function hslToHex(h, s, l) {
+  const { r, g, b } = hslToRgb(h, s, l);
+  return rgbToHex(r, g, b);
+}
+
 function setTextModeByLuminance(luminance) {
   document.body.dataset.bgMode = luminance > LUMINANCE_THRESHOLD ? 'light' : 'dark';
 }
@@ -108,25 +177,99 @@ function clearAdaptiveColors() {
   document.body.style.removeProperty('--time');
   document.body.style.removeProperty('--place');
   document.body.style.removeProperty('--accent');
+  document.body.style.removeProperty('--accent-soft');
+  document.body.style.removeProperty('--bg-card');
+  document.body.style.removeProperty('--bg-card-hover');
+  document.body.style.removeProperty('--border');
+  document.body.style.removeProperty('--border-light');
 }
 
+/**
+ * Текст + локальні гармонійні акценти й «скло» панелей; після цього може перезаписати Colormind (applyColormindPalette).
+ */
 function setAdaptiveColorsFromBg(hex, luminance) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return;
+
   const isLight = luminance > LUMINANCE_THRESHOLD;
+  const { h, s } = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  const sat = Math.max(0.12, s || 0.15);
+
   if (isLight) {
     document.body.style.setProperty('--text', blendHex(hex, '#0a0a0f', 0.82));
     document.body.style.setProperty('--text-muted', blendHex(hex, '#0a0a0f', 0.59));
     document.body.style.setProperty('--text-dim', blendHex(hex, '#0a0a0f', 0.44));
-    document.body.style.setProperty('--time', blendHex(hex, '#5c2e0a', 0.28));
-    document.body.style.setProperty('--place', blendHex(hex, '#0a0a0f', 0.52));
-    document.body.style.setProperty('--accent', blendHex('#3b82f6', hex, 0.21));
   } else {
     document.body.style.setProperty('--text', blendHex(hex, '#f8fafc', 0.86));
     document.body.style.setProperty('--text-muted', blendHex(hex, '#e2e8f0', 0.69));
     document.body.style.setProperty('--text-dim', blendHex(hex, '#94a3b8', 0.64));
-    document.body.style.setProperty('--time', blendHex(hex, '#fde047', 0.18));
-    document.body.style.setProperty('--place', blendHex(hex, '#cbd5e1', 0.72));
-    document.body.style.setProperty('--accent', blendHex('#93c5fd', hex, 0.26));
   }
+
+  /* Акцент (посилання Zoom тощо) — спліт-комплемент до відтінку фону */
+  const accentHex = hslToHex((h + 218) % 360, Math.min(0.85, sat + 0.38), isLight ? 0.38 : 0.68);
+  /* Час пари — теплий відтінок у гармонії з базовим */
+  const timeHex = hslToHex((h + 34) % 360, Math.min(0.88, sat + 0.5), isLight ? 0.32 : 0.62);
+  /* Корпус / аудиторія — приглушений той самий ряд */
+  const placeHex = hslToHex(h, Math.min(0.42, sat + 0.08), isLight ? 0.36 : 0.7);
+
+  document.body.style.setProperty('--accent', accentHex);
+  document.body.style.setProperty('--time', timeHex);
+  document.body.style.setProperty('--place', placeHex);
+
+  const accRgb = hexToRgb(accentHex);
+  if (accRgb) {
+    document.body.style.setProperty(
+      '--accent-soft',
+      `rgba(${accRgb.r},${accRgb.g},${accRgb.b},${isLight ? 0.2 : 0.22})`,
+    );
+  }
+
+  /* Панелі карток — тон фону, узгоджений з обраним кольором */
+  const cardTint = blendHex(hex, '#ffffff', isLight ? 0.72 : 0.22);
+  const cm = hexToRgb(cardTint);
+  if (cm) {
+    document.body.style.setProperty('--bg-card', `rgba(${cm.r},${cm.g},${cm.b},${isLight ? 0.45 : 0.11})`);
+    document.body.style.setProperty('--bg-card-hover', `rgba(${cm.r},${cm.g},${cm.b},${isLight ? 0.62 : 0.16})`);
+    document.body.style.setProperty('--border', `rgba(${cm.r},${cm.g},${cm.b},${isLight ? 0.2 : 0.28})`);
+    document.body.style.setProperty('--border-light', `rgba(${cm.r},${cm.g},${cm.b},${isLight ? 0.3 : 0.36})`);
+  }
+}
+
+/**
+ * Colormind: 5 кольорів [0]…[4] — панелі, рамки, акцент, час; текст лишається з setAdaptiveColorsFromBg.
+ * @param {number[][]} palette — [[r,g,b], …]
+ */
+function applyColormindPalette(palette, luminance) {
+  if (!Array.isArray(palette) || palette.length !== 5) return;
+  const isLight = luminance > LUMINANCE_THRESHOLD;
+  const [, c1, c2, c3, c4] = palette;
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  document.body.style.setProperty('--bg-card', rgba(c1, isLight ? 0.34 : 0.15));
+  document.body.style.setProperty('--bg-card-hover', rgba(c1, isLight ? 0.48 : 0.21));
+  document.body.style.setProperty('--border', rgba(c2, isLight ? 0.38 : 0.4));
+  document.body.style.setProperty('--border-light', rgba(c2, isLight ? 0.48 : 0.5));
+  document.body.style.setProperty('--accent', rgbToHex(c3[0], c3[1], c3[2]));
+  document.body.style.setProperty('--accent-soft', `rgba(${c3[0]},${c3[1]},${c3[2]},${isLight ? 0.2 : 0.24})`);
+  document.body.style.setProperty('--time', rgbToHex(c4[0], c4[1], c4[2]));
+  const pr = Math.round((c2[0] + c3[0]) / 2);
+  const pg = Math.round((c2[1] + c3[1]) / 2);
+  const pb = Math.round((c2[2] + c3[2]) / 2);
+  document.body.style.setProperty('--place', rgbToHex(pr, pg, pb));
+}
+
+function fetchColormindPalette(hex, luminance) {
+  fetch('/api/palette/colormind', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hex }),
+  })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((data) => {
+      if (data?.ok && Array.isArray(data.palette) && data.palette.length === 5) {
+        applyColormindPalette(data.palette, luminance);
+      }
+    })
+    .catch(() => {});
 }
 
 function computeImageLuminanceAndColor(url, done) {
@@ -183,6 +326,7 @@ function applyBackground(prefs) {
     const lum = getLuminanceForColor(prefs.value);
     setTextModeByLuminance(lum);
     setAdaptiveColorsFromBg(prefs.value, lum);
+    fetchColormindPalette(prefs.value, lum);
   } else {
     b.background = '#0f1320';
     b.backgroundImage = `url(${prefs.value})`;
@@ -194,6 +338,7 @@ function applyBackground(prefs) {
     computeImageLuminanceAndColor(prefs.value, (lum, avgHex) => {
       setTextModeByLuminance(lum);
       setAdaptiveColorsFromBg(avgHex, lum);
+      fetchColormindPalette(avgHex, lum);
     });
   }
 }
@@ -216,7 +361,11 @@ function openBackgroundModal() {
         </div>
         <label class="modal-label" style="margin-top:16px">Зображення (URL)</label>
         <input type="url" id="modal-bg-image" class="modal-input" placeholder="https://..." value="${stored?.type === 'image' ? stored.value : ''}" />
-        <p class="modal-hint modal-hint-sm" style="margin-top:12px">Колір тексту підлаштовується під фон для кращої читабельності</p>
+        <p class="modal-hint modal-hint-sm" style="margin-top:12px">
+          Після вибору кольору палітра для панелей, рамок, часу, корпусу/аудиторії та посилань підбирається через
+          <a href="http://colormind.io/" target="_blank" rel="noopener noreferrer" class="modal-inline-link">Colormind</a>
+          (запит іде через наш сервер). Якщо сервіс недоступний — залишається локальний підбір. Текст контрастний до фону завжди локально.
+        </p>
       </div>
       <p id="modal-bg-error" class="modal-error" style="display:none;"></p>
       <div class="modal-actions" style="margin-top:20px">
