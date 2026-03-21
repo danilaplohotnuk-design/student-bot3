@@ -744,6 +744,15 @@ body[data-bg-mode="light"] .lesson-card--empty:hover {
   color: var(--text-dim);
 }
 
+.schedule-empty-day {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.45;
+  max-width: 22em;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .state-message.error {
   color: var(--error);
 }
@@ -970,6 +979,95 @@ body.admin-page .app-shell {
 .btn-bg:hover {
   color: var(--text);
   background: rgba(255, 255, 255, 0.1);
+}
+
+/* === Нагадування (кнопка «!» зверху справа) === */
+/* display:flex нижче перебиває стандартний [hidden] у браузері — явно ховаємо */
+.reminder-trigger[hidden] {
+  display: none !important;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.reminder-trigger {
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 50;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  background: linear-gradient(145deg, #f59e0b, #ea580c);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  visibility: visible;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease, box-shadow 0.2s;
+}
+
+.reminder-trigger:hover {
+  box-shadow: 0 6px 28px rgba(234, 88, 12, 0.45);
+}
+
+.reminder-trigger:active {
+  transform: scale(0.96);
+}
+
+.reminder-trigger__icon {
+  display: block;
+  font-size: 1.45rem;
+  line-height: 1;
+  margin-top: -2px;
+}
+
+.modal-reminder {
+  max-width: min(400px, calc(100vw - 32px));
+}
+
+.modal-textarea {
+  min-height: 140px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.reminder-readonly {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+}
+
+.modal-actions--reminder {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body[data-bg-mode="light"] .reminder-trigger {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+body[data-bg-mode="light"] .reminder-readonly {
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 /* === Модалки: пароль і зміна пари (матове скло) === */

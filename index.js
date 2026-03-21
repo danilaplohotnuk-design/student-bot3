@@ -36,6 +36,22 @@ function loadVersionInfo() {
 }
 const VERSION_INFO = loadVersionInfo();
 
+const REMINDER_FILE = path.join(__dirname, 'reminder.json');
+
+function getReminderText() {
+  try {
+    const raw = fs.readFileSync(REMINDER_FILE, 'utf8');
+    const j = JSON.parse(raw);
+    return typeof j.text === 'string' ? j.text : '';
+  } catch {
+    return '';
+  }
+}
+
+function setReminderText(text) {
+  fs.writeFileSync(REMINDER_FILE, JSON.stringify({ text: String(text ?? '') }), 'utf8');
+}
+
 const app = express();
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
@@ -154,6 +170,12 @@ app.get('/api/zoom-link', (req, res) => {
   res.json({ url: url || null });
 });
 
+// Текст нагадування (для всіх; зберігається в reminder.json на сервері)
+app.get('/api/reminder', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ text: getReminderText() });
+});
+
 // --------- API: адмін-редагування (простий варіант у памʼяті) ---------
 
 // Middleware для простої перевірки пароля
@@ -224,6 +246,20 @@ app.post('/api/admin/schedule/restore', requireAdmin, (req, res) => {
   schedule.length = 0;
   schedule.push(...JSON.parse(JSON.stringify(initialSchedule)));
   res.json({ ok: true });
+});
+
+// Текст нагадування (адмін)
+app.put('/api/admin/reminder', requireAdmin, (req, res) => {
+  const raw = req.body?.text;
+  if (typeof raw !== 'string') {
+    return res.status(400).json({ error: 'Потрібне поле text (рядок)' });
+  }
+  if (raw.length > 4000) {
+    return res.status(400).json({ error: 'Текст не довший за 4000 символів' });
+  }
+  setReminderText(raw);
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, text: getReminderText() });
 });
 
 // --------- Старт сервера ---------

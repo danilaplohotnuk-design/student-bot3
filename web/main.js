@@ -37,6 +37,13 @@ function tomorrowISO() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** Текст, коли на обрану дату немає жодної пари (режим перегляду) */
+function emptyDayScheduleMessage(dateStr) {
+  if (dateStr === todayISO()) return 'На сьогодні пар немає, відпочиваємо';
+  if (dateStr === tomorrowISO()) return 'На завтра пар немає, відпочиваємо';
+  return 'У цей день пар немає, відпочиваємо';
+}
+
 const dateInput = document.getElementById('date-input');
 const dateLabel = document.getElementById('date-label');
 const todayBtn = document.getElementById('today-btn');
@@ -1069,6 +1076,13 @@ function renderSchedule(date, lessons) {
     .filter((l) => !TIME_SLOTS.some((s) => s.startTime === l.startTime))
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
     .forEach((l) => appendLessonCard(date, l));
+
+  if (!adminMode && list.length === 0) {
+    const msg = document.createElement('p');
+    msg.className = 'state-message empty schedule-empty-day';
+    msg.textContent = emptyDayScheduleMessage(date);
+    scheduleContainer.appendChild(msg);
+  }
 }
 
 function showToast(message) {
@@ -1090,6 +1104,10 @@ function showToast(message) {
 let storedAdminPassword = '';
 /** Після 8 тапів по версії та вірного пароля — свайп на парах і «Додати пару» на вільних слотах */
 let adminMode = false;
+/** Текст нагадування з GET /api/reminder */
+let reminderText = '';
+/** Після першого запиту /api/reminder (щоб у звичайному режимі не миготіла кнопка до відповіді) */
+let reminderFetchSettled = false;
 
 /** Захист від випадкових подвійних натискань у режимі адміна (мс) */
 const ADMIN_UI_COOLDOWN_MS = 450;
@@ -1142,6 +1160,139 @@ function applySwipeSnapAnimation(front, actions, finalX) {
 function closeModals() {
   const overlay = document.getElementById('schedule-modal-overlay');
   if (overlay) overlay.remove();
+}
+
+async function fetchReminderFromServer() {
+  try {
+    const res = await fetch('/api/reminder');
+    if (res.ok) {
+      const data = await res.json();
+      if (typeof data.text === 'string') reminderText = data.text;
+    }
+  } catch (_) {}
+  reminderFetchSettled = true;
+  syncReminderTrigger();
+}
+
+function syncReminderTrigger() {
+  const btn = document.getElementById('reminder-trigger');
+  if (!btn) return;
+  const hasText = !!(reminderText && reminderText.trim());
+
+  if (adminMode) {
+    btn.hidden = false;
+    btn.removeAttribute('aria-hidden');
+    btn.setAttribute('aria-label', 'Редагувати нагадування для студентів');
+    return;
+  }
+
+  /* Звичайний режим: кнопка лише після відповіді сервера і лише якщо є текст */
+  if (!reminderFetchSettled) {
+    btn.hidden = true;
+    btn.setAttribute('aria-hidden', 'true');
+    return;
+  }
+
+  btn.hidden = !hasText;
+  if (btn.hidden) btn.setAttribute('aria-hidden', 'true');
+  else btn.removeAttribute('aria-hidden');
+  btn.setAttribute('aria-label', 'Важливе нагадування');
+}
+
+function openReminderModal() {
+  closeModals();
+  const editable = adminMode;
+  const overlay = document.createElement('div');
+  overlay.id = 'schedule-modal-overlay';
+  overlay.className = 'modal-overlay';
+
+  if (editable) {
+    overlay.innerHTML = `
+      <div class="modal-box modal-reminder">
+        <h3 class="modal-title">Нагадування</h3>
+        <p class="modal-hint">Текст побачать усі студенти. Кнопка з «!» зʼявляється, якщо є текст (або в режимі редагування).</p>
+        <textarea id="reminder-modal-text" class="modal-input modal-textarea" rows="7" maxlength="4000" placeholder="Важлива інформація для студентів…"></textarea>
+        <p id="reminder-modal-error" class="modal-error" style="display:none;"></p>
+        <div class="modal-actions modal-actions--reminder">
+          <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
+          <button type="button" class="modal-btn modal-btn-secondary" data-action="clear">Очистити</button>
+          <button type="button" class="modal-btn modal-btn-primary" data-action="save">Зберегти</button>
+        </div>
+      </div>`;
+  } else {
+    overlay.innerHTML = `
+      <div class="modal-box modal-reminder">
+        <h3 class="modal-title">Важливо</h3>
+        <div class="reminder-readonly"></div>
+        <div class="modal-actions">
+          <button type="button" class="modal-btn modal-btn-primary" data-action="close">Закрити</button>
+        </div>
+      </div>`;
+  }
+
+  document.body.appendChild(overlay);
+
+  /* У WebView/Telegram після тапу по кнопці «!» другий synthetic click часто потрапляє на фон
+     overlay → миттєве closeModals(). Ігноруємо закриття по фону коротко після відкриття. */
+  let allowBackdropClose = false;
+  setTimeout(() => {
+    allowBackdropClose = true;
+  }, 450);
+
+  const isBackdropClick = (e) => e.target === overlay;
+
+  if (editable) {
+    const ta = overlay.querySelector('#reminder-modal-text');
+    ta.value = reminderText;
+    ta.focus();
+    const err = overlay.querySelector('#reminder-modal-error');
+
+    overlay.addEventListener('click', (e) => {
+      if (isBackdropClick(e) && !allowBackdropClose) return;
+      if (isBackdropClick(e) || e.target.dataset.action === 'cancel') closeModals();
+    });
+
+    overlay.querySelector('[data-action="clear"]').addEventListener('click', () => {
+      ta.value = '';
+      ta.focus();
+    });
+
+    overlay.querySelector('[data-action="save"]').addEventListener('click', async () => {
+      err.style.display = 'none';
+      err.textContent = '';
+      try {
+        const res = await fetch('/api/admin/reminder', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-password': storedAdminPassword,
+          },
+          body: JSON.stringify({ text: ta.value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) {
+          reminderText = typeof data.text === 'string' ? data.text : ta.value;
+          closeModals();
+          syncReminderTrigger();
+          showToast('Нагадування збережено');
+        } else {
+          err.textContent = data.error || 'Не вдалося зберегти';
+          err.style.display = 'block';
+        }
+      } catch (_) {
+        err.textContent = 'Немає зв’язку з сервером';
+        err.style.display = 'block';
+      }
+    });
+  } else {
+    const readEl = overlay.querySelector('.reminder-readonly');
+    if (readEl) readEl.textContent = reminderText;
+    overlay.addEventListener('click', (e) => {
+      if (isBackdropClick(e) && !allowBackdropClose) return;
+      if (isBackdropClick(e) || e.target.dataset.action === 'close') closeModals();
+    });
+    overlay.querySelector('[data-action="close"]').addEventListener('click', closeModals);
+  }
 }
 
 /**
@@ -1201,6 +1352,7 @@ function syncAdminChrome() {
   const banner = document.getElementById('admin-mode-banner');
   if (strip) strip.hidden = !adminMode;
   if (banner) banner.hidden = !adminMode;
+  syncReminderTrigger();
 }
 
 function exitAdminMode() {
@@ -1346,6 +1498,7 @@ function openPasswordModal(lessonOrNull, options = {}) {
           lastAdminUiTapAt = 0;
           closeAllLessonSwipes();
           syncAdminChrome();
+          fetchReminderFromServer();
           if (currentScheduleDate) loadSchedule(currentScheduleDate);
           return;
         }
@@ -1702,6 +1855,7 @@ applyBackground(getStoredBackground());
 const initialDate = todayISO();
 dateInput.value = initialDate;
 loadSchedule(initialDate);
+fetchReminderFromServer();
 
 document.getElementById('bg-btn').addEventListener('click', () => openBackgroundModal());
 
@@ -1716,6 +1870,14 @@ if (versionSecretBtn) {
 const adminExitBtn = document.getElementById('admin-exit-btn');
 if (adminExitBtn) {
   adminExitBtn.addEventListener('click', () => runAdminUiAction(() => exitAdminMode()));
+}
+
+const reminderTrigger = document.getElementById('reminder-trigger');
+if (reminderTrigger) {
+  reminderTrigger.addEventListener('click', () => {
+    if (!adminMode && (!reminderText || !reminderText.trim())) return;
+    openReminderModal();
+  });
 }
 
 registerGlobalSwipeDismiss();
