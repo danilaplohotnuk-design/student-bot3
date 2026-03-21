@@ -419,7 +419,8 @@ body.admin-mode .admin-exit-btn {
 .lesson-card-swipe-wrap {
   position: relative;
   border-radius: var(--radius);
-  overflow: hidden;
+  /* visible — щоб легкий відскок transform (ease-out-back) не обрізався */
+  overflow: visible;
 }
 
 .lesson-card-swipe-actions {
@@ -435,6 +436,8 @@ body.admin-mode .admin-exit-btn {
   z-index: 0;
   background: transparent;
   pointer-events: none;
+  opacity: 0;
+  transition: none;
 }
 
 .lesson-swipe-btn {

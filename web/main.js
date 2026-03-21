@@ -457,7 +457,6 @@ function appendLessonCard(date, lesson) {
   btnReplace.addEventListener('click', (e) => {
     e.stopPropagation();
     runAdminUiAction(() => {
-      closeAllLessonSwipes();
       openAddPairFormModal(lesson);
     });
   });
@@ -474,7 +473,6 @@ function appendLessonCard(date, lesson) {
   btnDelete.addEventListener('click', (e) => {
     e.stopPropagation();
     runAdminUiAction(() => {
-      closeAllLessonSwipes();
       confirmDeletePair(lesson);
     });
   });
@@ -557,17 +555,60 @@ function runAdminUiAction(fn) {
 
 /** Ширина зони дій справа (дві кнопки + відступи) — узгоджувати з CSS */
 const SWIPE_ACTIONS_WIDTH = 200;
-const SWIPE_TRANSITION = 'transform 0.22s cubic-bezier(0.25, 0.8, 0.25, 1)';
+/** Розгортання — швидко й передбачувано */
+const SWIPE_MS_OPEN = 280;
+const SWIPE_EASE_OPEN = 'cubic-bezier(0.25, 0.82, 0.2, 1)';
+/** Згортання — довше, «важкий м'яч» з легким відскоком (ease-out-back) */
+const SWIPE_MS_CLOSE = 580;
+const SWIPE_EASE_CLOSE = 'cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+
+/**
+ * Фінальний кадр після відпускання: плавно підтягує панель і opacity кнопок тим самим easing.
+ * finalX === 0 — згортання з «важким» відскоком; інакше — розгортання.
+ */
+function applySwipeSnapAnimation(front, actions, finalX) {
+  const closing = finalX === 0;
+  const ms = closing ? SWIPE_MS_CLOSE : SWIPE_MS_OPEN;
+  const ease = closing ? SWIPE_EASE_CLOSE : SWIPE_EASE_OPEN;
+  front.style.transition = `transform ${ms}ms ${ease}`;
+  front.style.transform = `translateX(${finalX}px)`;
+  if (actions) {
+    actions.style.transition = `opacity ${ms}ms ${ease}`;
+    if (closing) {
+      actions.style.opacity = '0';
+      actions.style.pointerEvents = 'none';
+      actions.setAttribute('aria-hidden', 'true');
+    } else {
+      actions.style.opacity = '1';
+      actions.style.pointerEvents = 'auto';
+      actions.setAttribute('aria-hidden', 'false');
+    }
+  }
+}
 
 function closeModals() {
   const overlay = document.getElementById('schedule-modal-overlay');
   if (overlay) overlay.remove();
 }
 
+/** Видимість кнопок Замінити/Видалити лише після свайпу (0…1 за прогресом). */
+function updateSwipeActionsVisibility(front, maxW) {
+  const wrap = front.parentElement;
+  if (!wrap) return;
+  const actions = wrap.querySelector('.lesson-card-swipe-actions');
+  if (!actions) return;
+  const m = front.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
+  const tx = m ? parseFloat(m[1], 10) : 0;
+  const reveal = Math.max(0, Math.min(1, -tx / maxW));
+  actions.style.opacity = String(reveal);
+  actions.style.pointerEvents = reveal > 0.12 ? 'auto' : 'none';
+  actions.setAttribute('aria-hidden', reveal < 0.08 ? 'true' : 'false');
+}
+
 function closeAllLessonSwipes() {
   document.querySelectorAll('.lesson-card--swipe-front').forEach((el) => {
-    el.style.transition = SWIPE_TRANSITION;
-    el.style.transform = 'translateX(0)';
+    const actions = el.parentElement?.querySelector('.lesson-card-swipe-actions');
+    applySwipeSnapAnimation(el, actions, 0);
   });
 }
 
@@ -591,6 +632,9 @@ function exitAdminMode() {
 }
 
 function attachSwipeToLessonFront(front, maxW) {
+  const wrap = front.parentElement;
+  const actions = wrap?.querySelector('.lesson-card-swipe-actions');
+
   let startX = 0;
   let lastTx = 0;
   let active = false;
@@ -600,6 +644,7 @@ function attachSwipeToLessonFront(front, maxW) {
     (e) => {
       closeAllLessonSwipes();
       front.style.transition = 'none';
+      if (actions) actions.style.transition = 'none';
       const m = front.style.transform.match(/translateX\((-?\d+(?:\.\d+)?)px\)/);
       lastTx = m ? parseFloat(m[1], 10) : 0;
       startX = e.touches[0].clientX;
@@ -616,6 +661,7 @@ function attachSwipeToLessonFront(front, maxW) {
       let x = lastTx + dx;
       x = Math.max(-maxW, Math.min(0, x));
       front.style.transform = `translateX(${x}px)`;
+      updateSwipeActionsVisibility(front, maxW);
     },
     { passive: true },
   );
@@ -628,8 +674,7 @@ function attachSwipeToLessonFront(front, maxW) {
       const dx = e.changedTouches[0].clientX - startX;
       const x = lastTx + dx;
       const finalX = x < -maxW / 2 ? -maxW : 0;
-      front.style.transition = SWIPE_TRANSITION;
-      front.style.transform = `translateX(${finalX}px)`;
+      applySwipeSnapAnimation(front, actions, finalX);
       front.dataset.skipZoomClick = Math.abs(dx) > 14 ? '1' : '0';
     },
     { passive: true },
@@ -640,11 +685,12 @@ function attachSwipeToLessonFront(front, maxW) {
     () => {
       if (!active) return;
       active = false;
-      front.style.transition = SWIPE_TRANSITION;
-      front.style.transform = 'translateX(0)';
+      applySwipeSnapAnimation(front, actions, 0);
     },
     { passive: true },
   );
+
+  updateSwipeActionsVisibility(front, maxW);
 }
 
 const SECRET_TAPS = 8;
@@ -753,13 +799,17 @@ async function deletePair(lesson) {
 }
 
 function confirmDeletePair(lesson) {
-  if (!confirm('Видалити цю пару?')) return;
+  if (!confirm('Видалити цю пару?')) {
+    closeAllLessonSwipes();
+    return;
+  }
   deletePair(lesson).then((ok) => {
     if (ok) {
       showToast('Пару видалено');
       if (currentScheduleDate) loadSchedule(currentScheduleDate);
     } else {
       showToast('Помилка видалення');
+      closeAllLessonSwipes();
     }
   });
 }
@@ -822,7 +872,10 @@ async function openAddPairFormModal(lessonOrNull) {
   const errorEl = overlay.querySelector('#modal-form-error');
 
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay || e.target.dataset.action === 'cancel') closeModals();
+    if (e.target === overlay || e.target.dataset.action === 'cancel') {
+      closeModals();
+      closeAllLessonSwipes();
+    }
   });
 
   overlay.querySelector('[data-action="add"]').addEventListener('click', async () => {
@@ -881,6 +934,7 @@ async function openAddPairFormModal(lessonOrNull) {
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.ok) {
         closeModals();
+        closeAllLessonSwipes();
         showToast(existingAtTime ? 'Пару оновлено' : 'Пару додано');
         loadSchedule(currentScheduleDate);
       } else {
