@@ -1,24 +1,15 @@
-/* Cy Grotesk Grand Dark — заголовок «Розклад», дата, футер (файл: web/fonts/CyGrotesk-GrandDark.otf) */
+/* Єдиний шрифт інтерфейсу (файл: web/fonts/Spaceland-Ten.otf) */
 @font-face {
-  font-family: 'Cy Grotesk Grand Dark';
-  src: url('fonts/CyGrotesk-GrandDark.otf') format('opentype');
+  font-family: 'Spaceland Ten';
+  src: url('fonts/Spaceland-Ten.otf') format('opentype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Cy Grotesk Grand Dark';
-  src: url('fonts/CyGrotesk-GrandDark.otf') format('opentype');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* Grunt Grotesk Bold — текст на картках і панелях (файл: web/fonts/GruntGrotesk-Bold.otf) */
-@font-face {
-  font-family: 'Grunt Grotesk';
-  src: url('fonts/GruntGrotesk-Bold.otf') format('opentype');
+  font-family: 'Spaceland Ten';
+  src: url('fonts/Spaceland-Ten.otf') format('opentype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -27,6 +18,23 @@
 /* === Variables (матове скло / glassmorphism) === */
 :root {
   --bg: #0f1320;
+  /* Стандартний фон при запуску: світіння зліва + легкий акцент + глибина (узгоднено з 7% shine) */
+  --bg-shine: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.07));
+  --bg-accent-wash: linear-gradient(
+    105deg,
+    rgba(59, 130, 246, 0.07) 0%,
+    rgba(59, 130, 246, 0.02) 38%,
+    transparent 62%
+  );
+  --bg-depth: linear-gradient(
+    158deg,
+    #0a0e18 0%,
+    #0e1322 24%,
+    #141a2e 52%,
+    #0b0f18 78%,
+    #070a12 100%
+  );
+  --bg-startup: var(--bg-shine), var(--bg-accent-wash), var(--bg-depth);
   --bg-card: rgba(255, 255, 255, 0.05);
   --bg-card-hover: rgba(255, 255, 255, 0.08);
   --glass-blur: 12px;
@@ -46,23 +54,37 @@
   --radius-sm: 10px;
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.25);
-  --font: 'Manrope', system-ui, sans-serif;
-  /* Головний екран: шапка, дата, кнопки, футер */
-  --font-main: 'Cy Grotesk Grand Dark', 'Manrope', system-ui, sans-serif;
-  /* Картки пар, корпус/час у модалці */
-  --font-panel: 'Grunt Grotesk', 'Manrope', system-ui, sans-serif;
+  --font: 'Spaceland Ten', system-ui, sans-serif;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  font-family: var(--font);
+}
+
+/* Нативні контроли часто ігнорують шрифт body — тягнемо Spaceland скрізь */
+button,
+input,
+select,
+textarea,
+optgroup,
+option {
+  font-family: inherit;
+}
+
+::placeholder {
+  font-family: inherit;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: var(--font);
+  font-family: inherit;
   font-size: 16px;
-  background: linear-gradient(160deg, #0f1320 0%, #161c2e 40%, #0d1220 100%);
+  background: var(--bg-startup);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -71,6 +93,8 @@ body {
 
 .app-shell {
   position: relative;
+  z-index: 1;
+  isolation: isolate;
   max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
@@ -82,7 +106,101 @@ body {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  font-family: var(--font-main);
+}
+
+/* Повноекранне зображення під контентом (яскравість + затемнення) */
+.schedule-bg-root {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.schedule-bg-root__img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  transform: scale(1.02);
+  filter: brightness(1);
+}
+
+.schedule-bg-root__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background-color: rgba(0, 0, 0, 0);
+  pointer-events: none;
+}
+
+/* Те саме легке світіння + легкий акцент поверх фото (як на стартовому екрані) */
+.schedule-bg-root::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: var(--bg-shine), var(--bg-accent-wash);
+}
+
+/* Водяний знак «ТБА» — по центру екрана, повернутий 90° */
+.app-tba-watermark {
+  display: none;
+  box-sizing: border-box;
+  position: fixed;
+  left: calc(50% + 28%);
+  top: 50%;
+  right: auto;
+  transform: translate(-50%, -50%) rotate(90deg);
+  transform-origin: center center;
+  font-family: var(--font);
+  font-size: clamp(
+    8.5rem,
+    calc((100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 2.1),
+    56rem
+  );
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--text);
+  opacity: 1;
+  -webkit-mask-image: linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.1)
+  );
+  mask-image: linear-gradient(
+    to top,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.1)
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 0;
+}
+
+/* Стандартний фон (без збереженого фону) + колірний; при фото — приховано */
+body:not([data-bg-kind="image"]) .app-tba-watermark {
+  display: block;
+}
+
+@supports (height: 100dvh) {
+  .app-tba-watermark {
+    font-size: clamp(
+      8.5rem,
+      calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 2.1),
+      56rem
+    );
+  }
 }
 
 /* Вихід з режиму редагування — одна панель як картка пари; лише для адміна (JS ставить hidden) */
@@ -119,7 +237,7 @@ body:not(.admin-mode) .admin-exit-strip {
   -webkit-backdrop-filter: none;
   color: var(--text);
   cursor: pointer;
-  font-family: var(--font-panel);
+  font-family: var(--font);
   transition: transform 0.12s ease, color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
@@ -289,7 +407,7 @@ body:not(.admin-mode) .admin-exit-strip {
 .date-input {
   width: 100%;
   padding: 14px 16px;
-  font-family: var(--font-main);
+  font-family: var(--font);
   font-size: 1rem;
   font-weight: 500;
   color: var(--text);
@@ -315,7 +433,7 @@ body:not(.admin-mode) .admin-exit-strip {
 
 .btn-quick {
   padding: 14px 16px;
-  font-family: var(--font-main);
+  font-family: var(--font);
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text);
@@ -358,7 +476,7 @@ body:not(.admin-mode) .admin-exit-strip {
 }
 
 .lesson-card {
-  font-family: var(--font-panel);
+  font-family: var(--font);
   background: var(--bg-card);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -511,7 +629,7 @@ body.admin-mode .admin-exit-btn {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-family: var(--font-panel);
+  font-family: var(--font);
   font-size: 0.7rem;
   font-weight: 700;
   line-height: 1.15;
@@ -836,7 +954,7 @@ body.admin-page .app-shell {
 
 .btn-bg {
   padding: 8px 14px;
-  font-family: var(--font-main);
+  font-family: var(--font);
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-muted);
@@ -1055,7 +1173,7 @@ body.admin-page .app-shell {
 
 .modal-pair-glass {
   --pair-glass-edge: inset 0 1px 0 rgba(255, 255, 255, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.12);
-  font-family: var(--font-panel);
+  font-family: var(--font);
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
@@ -1091,7 +1209,7 @@ body.admin-page .app-shell {
 .building-panel {
   margin: 0;
   padding: 14px 12px;
-  font-family: var(--font-panel);
+  font-family: var(--font);
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1188,6 +1306,139 @@ body.admin-page .app-shell {
 .modal-input-inline {
   flex: 1;
   min-width: 0;
+}
+
+.bg-file-row {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.modal-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  opacity: 0;
+}
+
+.modal-btn-file {
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 48px;
+}
+
+.bg-file-hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.bg-preview-wrap {
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.bg-preview-stage {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.bg-preview-img {
+  display: block;
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  filter: brightness(1);
+}
+
+.bg-preview-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: rgba(0, 0, 0, 0);
+}
+
+.bg-adjust-wrap {
+  margin-top: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bg-adjust-wrap[hidden] {
+  display: none !important;
+}
+
+.bg-adjust-wrap > .modal-label {
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+
+.bg-adjust-wrap > .modal-label + .bg-adjust-row {
+  margin-bottom: 0;
+}
+
+.bg-adjust-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bg-adjust-slider {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  margin: 0;
+  accent-color: var(--accent);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bg-adjust-value {
+  flex: 0 0 2.75rem;
+  text-align: right;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bg-adjust-value--wide {
+  flex: 0 0 auto;
+  min-width: 6.5rem;
+  max-width: 42%;
+}
+
+.modal-btn-text {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.modal-btn-text:active {
+  opacity: 0.85;
 }
 
 .modal-hint-sm {

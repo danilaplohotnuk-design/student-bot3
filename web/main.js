@@ -52,16 +52,199 @@ let zoomPendingTimer = null;
 
 // --------- Фон: колір або зображення (localStorage) ---------
 const BG_STORAGE_KEY = 'schedule_app_bg';
+const BG_LAYER_ID = 'schedule-bg-root';
 const LUMINANCE_THRESHOLD = 0.45; // вище = світлий фон → темний текст
+/** Легке світіння зліва → вправо (~7% білого), поверх кольору фону (як --bg-shine у styles.css) */
+const BG_SHINE_GRADIENT =
+  'linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.07))';
+/** Колір під фото / до завантаження — узгоджено з --bg-depth у styles.css */
+const BG_FALLBACK_SOLID = '#0b0f18';
+
+function clampBg(n, lo, hi) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return lo;
+  return Math.max(lo, Math.min(hi, x));
+}
+
+function normalizeImageBgPrefs(prefs) {
+  if (!prefs || prefs.type !== 'image' || !prefs.value) return null;
+  let d = Number(prefs.darken);
+  if (!Number.isFinite(d)) d = 0;
+  d = clampBg(d, 0, 100);
+  let br = Number(prefs.brightness);
+  if (!Number.isFinite(br)) br = 100;
+  br = clampBg(br, 50, 150);
+  let bs = Number(prefs.blurSharp);
+  if (!Number.isFinite(bs)) bs = 50;
+  bs = clampBg(bs, 0, 100);
+  return { type: 'image', value: prefs.value, darken: d, brightness: br, blurSharp: bs };
+}
+
+function ensureBgLayer() {
+  let root = document.getElementById(BG_LAYER_ID);
+  if (!root) {
+    root = document.createElement('div');
+    root.id = BG_LAYER_ID;
+    root.className = 'schedule-bg-root';
+    root.setAttribute('aria-hidden', 'true');
+    root.innerHTML = '<div class="schedule-bg-root__img"></div><div class="schedule-bg-root__shade"></div>';
+    document.body.insertBefore(root, document.body.firstChild);
+  }
+  root.style.display = '';
+  return root;
+}
+
+function hideBgLayer() {
+  const root = document.getElementById(BG_LAYER_ID);
+  if (root) root.style.display = 'none';
+}
+
+function applyImageLayer(prefs) {
+  const p = normalizeImageBgPrefs(prefs);
+  if (!p) return;
+  const root = ensureBgLayer();
+  const imgEl = root.querySelector('.schedule-bg-root__img');
+  const shade = root.querySelector('.schedule-bg-root__shade');
+  imgEl.style.backgroundImage = `url(${JSON.stringify(p.value)})`;
+  imgEl.style.filter = buildBgImageFilter(p.brightness, p.blurSharp);
+  shade.style.backgroundColor = `rgba(0,0,0,${p.darken / 100})`;
+}
+
+/** Єдиний повзунок 0–100: ліворуч темніше (затемнення + нижча яскравість), праворуч світліше */
+function darkBrightFromUnifiedSlider(v) {
+  const x = clampBg(v, 0, 100);
+  if (x <= 50) {
+    const t = (50 - x) / 50;
+    return {
+      darken: Math.round(t * 100),
+      brightness: Math.round(100 - t * 25),
+    };
+  }
+  const t = (x - 50) / 50;
+  return { darken: 0, brightness: Math.round(100 + t * 50) };
+}
+
+/** Відновлення позиції повзунка зі збережених darken / brightness */
+function unifiedSliderFromStored(darken, brightness) {
+  const d = clampBg(Number(darken), 0, 100);
+  const b = clampBg(Number(brightness), 50, 150);
+  if (d > 0) {
+    return clampBg(Math.round(50 - (d / 100) * 50), 0, 50);
+  }
+  if (b > 100) {
+    return clampBg(Math.round(50 + ((b - 100) / 50) * 50), 50, 100);
+  }
+  if (b < 100) {
+    const t = (100 - b) / 25;
+    return clampBg(Math.round(50 - Math.min(1, t) * 50), 0, 50);
+  }
+  return 50;
+}
+
+function readUnifiedDarkBrightSlider(el) {
+  const n = parseInt(el.value, 10);
+  if (!Number.isFinite(n)) return 50;
+  return clampBg(n, 0, 100);
+}
+
+function formatDarkBrightLabel(v) {
+  const x = clampBg(v, 0, 100);
+  if (x === 50) return 'Нейтрально';
+  if (x < 50) return `Темніше ${Math.round(((50 - x) / 50) * 100)}%`;
+  return `Світліше ${Math.round(((x - 50) / 50) * 100)}%`;
+}
+
+/** 0 — макс. розмиття, 50 — нейтрально, 100 — більша різкість (через contrast) */
+function readBlurSharpSlider(el) {
+  const n = parseInt(el.value, 10);
+  if (!Number.isFinite(n)) return 50;
+  return clampBg(n, 0, 100);
+}
+
+function formatBlurSharpLabel(v) {
+  const x = clampBg(v, 0, 100);
+  if (x === 50) return 'Нейтрально';
+  if (x < 50) return `Розмиття ${Math.round(((50 - x) / 50) * 100)}%`;
+  return `Різкість ${Math.round(((x - 50) / 50) * 100)}%`;
+}
+
+/** Яскравість + один повзунок «розмиття / різкість» */
+function buildBgImageFilter(brightnessPct, blurSharpPct) {
+  const b = clampBg(brightnessPct, 50, 150) / 100;
+  const v = clampBg(blurSharpPct, 0, 100);
+  const parts = [`brightness(${b})`];
+  if (v < 50) {
+    const t = (50 - v) / 50;
+    parts.push(`blur(${t * 12}px)`);
+  } else if (v > 50) {
+    const t = (v - 50) / 50;
+    parts.push(`contrast(${1 + t * 0.35})`);
+  }
+  return parts.join(' ');
+}
+
+function isValidStoredImageValue(v) {
+  if (typeof v !== 'string' || !v) return false;
+  if (/^https?:\/\//i.test(v)) return true;
+  return /^data:image\/(jpeg|jpg|png|webp|gif);base64,/i.test(v);
+}
 
 function getStoredBackground() {
   try {
     const raw = localStorage.getItem(BG_STORAGE_KEY);
     if (!raw) return null;
     const prefs = JSON.parse(raw);
-    if (prefs && (prefs.type === 'color' || prefs.type === 'image') && prefs.value) return prefs;
+    if (!prefs || !prefs.value) return null;
+    if (prefs.type === 'color') return prefs;
+    if (prefs.type === 'image' && isValidStoredImageValue(prefs.value)) return prefs;
   } catch (_) {}
   return null;
+}
+
+/** Макс. довжина рядка data URL у localStorage (~2.4 МБ під типовий ліміт 5 МБ) */
+const BG_MAX_DATA_URL_CHARS = 2_400_000;
+
+function loadImageFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const u = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(u);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(u);
+      reject(new Error('Не вдалося прочитати зображення'));
+    };
+    img.src = u;
+  });
+}
+
+/** Стиснення JPEG для збереження в localStorage (галерея / файл з ПК) */
+async function imageFileToStoredDataUrl(file) {
+  if (!file || !file.type.startsWith('image/')) {
+    throw new Error('Оберіть файл зображення');
+  }
+  const img = await loadImageFromFile(file);
+  let maxSide = 1920;
+  let quality = 0.82;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    const scale = Math.min(1, maxSide / Math.max(w, h));
+    const tw = Math.max(1, Math.round(w * scale));
+    const th = Math.max(1, Math.round(h * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = tw;
+    canvas.height = th;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, tw, th);
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+    if (dataUrl.length <= BG_MAX_DATA_URL_CHARS) return dataUrl;
+    maxSide = Math.round(maxSide * 0.72);
+    quality = Math.max(0.45, quality - 0.09);
+  }
+  throw new Error('Зображення завелике навіть після стиснення. Спробуйте інший файл або посилання.');
 }
 
 function hexToRgb(hex) {
@@ -291,7 +474,9 @@ function fetchColormindPalette(hex, luminance) {
 
 function computeImageLuminanceAndColor(url, done) {
   const img = new Image();
-  img.crossOrigin = 'anonymous';
+  if (!/^data:/i.test(String(url))) {
+    img.crossOrigin = 'anonymous';
+  }
   img.onload = () => {
     try {
       const canvas = document.createElement('canvas');
@@ -326,7 +511,9 @@ function applyBackground(prefs) {
   const b = document.body.style;
   if (!prefs) {
     document.body.removeAttribute('data-bg-mode');
+    document.body.removeAttribute('data-bg-kind');
     clearAdaptiveColors();
+    hideBgLayer();
     b.background = '';
     b.backgroundImage = '';
     b.backgroundSize = '';
@@ -335,8 +522,9 @@ function applyBackground(prefs) {
     return;
   }
   if (prefs.type === 'color') {
-    b.background = prefs.value;
-    b.backgroundImage = 'none';
+    document.body.dataset.bgKind = 'color';
+    hideBgLayer();
+    b.background = `${BG_SHINE_GRADIENT}, ${prefs.value}`;
     b.backgroundSize = '';
     b.backgroundPosition = '';
     b.backgroundAttachment = '';
@@ -345,14 +533,21 @@ function applyBackground(prefs) {
     setAdaptiveColorsFromBg(prefs.value, lum);
     fetchColormindPalette(prefs.value, lum);
   } else {
-    b.background = '#0f1320';
-    b.backgroundImage = `url(${prefs.value})`;
-    b.backgroundSize = 'cover';
-    b.backgroundPosition = 'center';
-    b.backgroundAttachment = 'fixed';
+    const p = normalizeImageBgPrefs(prefs);
+    if (!p) {
+      document.body.removeAttribute('data-bg-kind');
+      hideBgLayer();
+      return;
+    }
+    document.body.dataset.bgKind = 'image';
+    b.background = `${BG_SHINE_GRADIENT}, ${BG_FALLBACK_SOLID}`;
+    b.backgroundSize = '';
+    b.backgroundPosition = '';
+    b.backgroundAttachment = '';
+    applyImageLayer(p);
     clearAdaptiveColors();
     setTextModeByLuminance(0);
-    computeImageLuminanceAndColor(prefs.value, (lum, avgHex) => {
+    computeImageLuminanceAndColor(p.value, (lum, avgHex) => {
       setTextModeByLuminance(lum);
       setAdaptiveColorsFromBg(avgHex, lum);
       fetchColormindPalette(avgHex, lum);
@@ -363,27 +558,66 @@ function applyBackground(prefs) {
 function openBackgroundModal() {
   closeModals();
   const stored = getStoredBackground();
+  const existingFileDataUrl =
+    stored?.type === 'image' && String(stored.value).startsWith('data:image/') ? stored.value : null;
+  const initialImageUrl =
+    stored?.type === 'image' && /^https?:\/\//i.test(String(stored.value)) ? stored.value : '';
+  const storedUnified =
+    stored?.type === 'image'
+      ? unifiedSliderFromStored(
+          Number.isFinite(Number(stored.darken)) ? Number(stored.darken) : 0,
+          Number.isFinite(Number(stored.brightness)) ? Number(stored.brightness) : 100,
+        )
+      : 50;
+  const storedBlurSharp =
+    stored?.type === 'image' && Number.isFinite(Number(stored.blurSharp))
+      ? clampBg(Number(stored.blurSharp), 0, 100)
+      : 50;
+
+  let newFileDataUrl = null;
+  let stripExistingFileBg = false;
+
   const overlay = document.createElement('div');
   overlay.id = 'schedule-modal-overlay';
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
     <div class="modal-box modal-form">
       <h3 class="modal-title">Фон екрана</h3>
-      <p class="modal-hint">Оберіть колір або вставте посилання на зображення</p>
+      <p class="modal-hint">Колір, посилання на зображення або файл із галереї / комп’ютера</p>
       <div class="bg-options">
         <label class="modal-label">Колір</label>
         <div class="bg-color-row">
           <input type="color" id="modal-bg-color" value="${stored?.type === 'color' ? stored.value : '#1a1f35'}" class="modal-color-input" />
           <input type="text" id="modal-bg-color-hex" class="modal-input modal-input-inline" placeholder="#1a1f35" maxlength="7" value="${stored?.type === 'color' ? stored.value : ''}" />
         </div>
+        <label class="modal-label" style="margin-top:16px">Зображення з телефону чи ПК</label>
+        <div class="bg-file-row">
+          <input type="file" id="modal-bg-file" class="modal-file-input" accept="image/*" tabindex="-1" aria-hidden="true" />
+          <button type="button" class="modal-btn modal-btn-secondary modal-btn-file" id="modal-bg-file-trigger">Обрати зображення</button>
+          <span class="bg-file-hint" id="modal-bg-file-hint"></span>
+        </div>
         <label class="modal-label" style="margin-top:16px">Зображення (URL)</label>
-        <input type="url" id="modal-bg-image" class="modal-input" placeholder="https://..." value="${stored?.type === 'image' ? stored.value : ''}" />
-        <p class="modal-hint modal-hint-sm" style="margin-top:12px">
-          <strong>Світлий фон:</strong> панелі лишаються нейтральним матовим склом; акценти часу/посилань — у гармонії з відтінком.
-          <strong>Темний фон:</strong> панелі й палітра додатково через
-          <a href="http://colormind.io/" target="_blank" rel="noopener noreferrer" class="modal-inline-link">Colormind</a>
-          (через сервер). Якщо Colormind недоступний — локальний підбір.
-        </p>
+        <input type="url" id="modal-bg-image" class="modal-input" placeholder="https://..." value="${escapeHtml(initialImageUrl)}" />
+        <p class="modal-hint modal-hint-sm" style="margin-top:8px">Тут ви можете завантажити зображення через посилання</p>
+        <div id="modal-bg-preview-wrap" class="bg-preview-wrap" hidden>
+          <div class="bg-preview-stage">
+            <img id="modal-bg-preview-img" class="bg-preview-img" alt="" />
+            <div id="modal-bg-preview-shade" class="bg-preview-shade"></div>
+          </div>
+          <button type="button" class="modal-btn-text" id="modal-bg-remove-file">Прибрати фото</button>
+        </div>
+        <div id="modal-bg-adjust" class="bg-adjust-wrap" hidden>
+          <label class="modal-label" for="modal-bg-dark-bright">Затемнення / яскравість</label>
+          <div class="bg-adjust-row">
+            <input type="range" id="modal-bg-dark-bright" class="bg-adjust-slider" min="0" max="100" value="${storedUnified}" />
+            <span id="modal-bg-dark-bright-val" class="bg-adjust-value bg-adjust-value--wide">${escapeHtml(formatDarkBrightLabel(storedUnified))}</span>
+          </div>
+          <label class="modal-label" for="modal-bg-blur-sharp">Розмиття / різкість</label>
+          <div class="bg-adjust-row">
+            <input type="range" id="modal-bg-blur-sharp" class="bg-adjust-slider" min="0" max="100" value="${storedBlurSharp}" />
+            <span id="modal-bg-blur-sharp-val" class="bg-adjust-value bg-adjust-value--wide">${escapeHtml(formatBlurSharpLabel(storedBlurSharp))}</span>
+          </div>
+        </div>
       </div>
       <p id="modal-bg-error" class="modal-error" style="display:none;"></p>
       <div class="modal-actions" style="margin-top:20px">
@@ -398,7 +632,89 @@ function openBackgroundModal() {
   const colorInput = overlay.querySelector('#modal-bg-color');
   const hexInput = overlay.querySelector('#modal-bg-color-hex');
   const imageInput = overlay.querySelector('#modal-bg-image');
+  const fileInput = overlay.querySelector('#modal-bg-file');
+  const fileTrigger = overlay.querySelector('#modal-bg-file-trigger');
+  const fileHint = overlay.querySelector('#modal-bg-file-hint');
+  const previewWrap = overlay.querySelector('#modal-bg-preview-wrap');
+  const previewImg = overlay.querySelector('#modal-bg-preview-img');
+  const previewShade = overlay.querySelector('#modal-bg-preview-shade');
+  const adjustWrap = overlay.querySelector('#modal-bg-adjust');
+  const darkBrightRange = overlay.querySelector('#modal-bg-dark-bright');
+  const blurSharpRange = overlay.querySelector('#modal-bg-blur-sharp');
+  const darkBrightValEl = overlay.querySelector('#modal-bg-dark-bright-val');
+  const blurSharpValEl = overlay.querySelector('#modal-bg-blur-sharp-val');
+  const removeFileBtn = overlay.querySelector('#modal-bg-remove-file');
   const errorEl = overlay.querySelector('#modal-bg-error');
+
+  const syncModalPreviewAdjust = () => {
+    const u = readUnifiedDarkBrightSlider(darkBrightRange);
+    const { darken: d, brightness: br } = darkBrightFromUnifiedSlider(u);
+    const bs = readBlurSharpSlider(blurSharpRange);
+    darkBrightValEl.textContent = formatDarkBrightLabel(u);
+    blurSharpValEl.textContent = formatBlurSharpLabel(bs);
+    if (!previewWrap.hidden && previewImg.getAttribute('src')) {
+      previewImg.style.filter = buildBgImageFilter(br, bs);
+      previewShade.style.backgroundColor = `rgba(0,0,0,${d / 100})`;
+    }
+  };
+
+  const refreshAdjustVisibility = () => {
+    const urlOk = /^https?:\/\//i.test(imageInput.value.trim());
+    const hasPreview = !previewWrap.hidden && !!previewImg.getAttribute('src');
+    adjustWrap.hidden = !(urlOk || hasPreview);
+  };
+
+  const showPreview = (src) => {
+    previewImg.src = src;
+    previewWrap.hidden = false;
+    syncModalPreviewAdjust();
+    refreshAdjustVisibility();
+  };
+  const hidePreview = () => {
+    previewWrap.hidden = true;
+    previewImg.removeAttribute('src');
+    previewImg.style.filter = '';
+    previewShade.style.backgroundColor = 'rgba(0,0,0,0)';
+    refreshAdjustVisibility();
+  };
+
+  if (existingFileDataUrl) {
+    previewImg.onload = () => {
+      syncModalPreviewAdjust();
+      refreshAdjustVisibility();
+    };
+    previewImg.onerror = () => {
+      hidePreview();
+      refreshAdjustVisibility();
+    };
+    previewImg.src = existingFileDataUrl;
+    previewWrap.hidden = false;
+    syncModalPreviewAdjust();
+    refreshAdjustVisibility();
+    fileHint.textContent = 'Зараз використовується зображення з файлу';
+  } else if (initialImageUrl) {
+    previewImg.onload = () => {
+      syncModalPreviewAdjust();
+      refreshAdjustVisibility();
+    };
+    previewImg.onerror = () => {
+      hidePreview();
+      refreshAdjustVisibility();
+    };
+    previewImg.src = initialImageUrl;
+    previewWrap.hidden = false;
+    syncModalPreviewAdjust();
+    refreshAdjustVisibility();
+  } else {
+    refreshAdjustVisibility();
+  }
+
+  darkBrightRange.addEventListener('input', () => {
+    syncModalPreviewAdjust();
+  });
+  blurSharpRange.addEventListener('input', () => {
+    syncModalPreviewAdjust();
+  });
 
   const syncColorToHex = () => {
     hexInput.value = colorInput.value;
@@ -410,6 +726,66 @@ function openBackgroundModal() {
   colorInput.addEventListener('input', syncColorToHex);
   hexInput.addEventListener('input', syncHexToColor);
   hexInput.addEventListener('blur', syncHexToColor);
+
+  fileTrigger.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', async () => {
+    const f = fileInput.files?.[0];
+    fileInput.value = '';
+    if (!f) return;
+    errorEl.style.display = 'none';
+    fileHint.textContent = 'Обробка…';
+    try {
+      newFileDataUrl = await imageFileToStoredDataUrl(f);
+      stripExistingFileBg = false;
+      imageInput.value = '';
+      showPreview(newFileDataUrl);
+      fileHint.textContent = f.name ? `Обрано: ${f.name}` : 'Файл обрано';
+      refreshAdjustVisibility();
+    } catch (err) {
+      newFileDataUrl = null;
+      fileHint.textContent = '';
+      errorEl.textContent = err.message || 'Не вдалося обробити файл';
+      errorEl.style.display = 'block';
+      refreshAdjustVisibility();
+    }
+  });
+
+  imageInput.addEventListener('input', () => {
+    const v = imageInput.value.trim();
+    if (v) {
+      newFileDataUrl = null;
+      stripExistingFileBg = true;
+      fileHint.textContent = '';
+      if (/^https?:\/\//i.test(v)) {
+        previewImg.onload = () => {
+          syncModalPreviewAdjust();
+          refreshAdjustVisibility();
+        };
+        previewImg.onerror = () => {
+          hidePreview();
+          refreshAdjustVisibility();
+          syncModalPreviewAdjust();
+        };
+        previewImg.src = v;
+        previewWrap.hidden = false;
+      } else {
+        hidePreview();
+      }
+    } else {
+      hidePreview();
+    }
+    refreshAdjustVisibility();
+    syncModalPreviewAdjust();
+  });
+
+  removeFileBtn.addEventListener('click', () => {
+    newFileDataUrl = null;
+    stripExistingFileBg = true;
+    hidePreview();
+    fileHint.textContent = '';
+    refreshAdjustVisibility();
+  });
 
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay || e.target.dataset.action === 'cancel') closeModals();
@@ -425,16 +801,42 @@ function openBackgroundModal() {
       errorEl.style.display = 'none';
       const imageUrl = imageInput.value.trim();
       const colorHex = hexInput.value.trim() || colorInput.value;
-      if (imageUrl) {
+
+      const saveImage = (value) => {
+        const u = readUnifiedDarkBrightSlider(darkBrightRange);
+        const { darken, brightness } = darkBrightFromUnifiedSlider(u);
+        const blurSharp = readBlurSharpSlider(blurSharpRange);
+        const payload = { type: 'image', value, darken, brightness, blurSharp };
         try {
-          localStorage.setItem(BG_STORAGE_KEY, JSON.stringify({ type: 'image', value: imageUrl }));
-          applyBackground({ type: 'image', value: imageUrl });
+          localStorage.setItem(BG_STORAGE_KEY, JSON.stringify(payload));
+          applyBackground(payload);
           closeModals();
           showToast('Фон застосовано');
-        } catch (_) {
-          errorEl.textContent = 'Невірне посилання';
+        } catch (err) {
+          if (err?.name === 'QuotaExceededError') {
+            errorEl.textContent = 'Недостатньо місця в браузері. Спробуйте менше зображення або посилання.';
+          } else {
+            errorEl.textContent = 'Не вдалося зберегти фон';
+          }
           errorEl.style.display = 'block';
         }
+      };
+
+      if (newFileDataUrl) {
+        saveImage(newFileDataUrl);
+        return;
+      }
+      if (imageUrl) {
+        if (!/^https?:\/\//i.test(imageUrl)) {
+          errorEl.textContent = 'Введіть коректне посилання (https://…)';
+          errorEl.style.display = 'block';
+          return;
+        }
+        saveImage(imageUrl);
+        return;
+      }
+      if (existingFileDataUrl && !stripExistingFileBg) {
+        saveImage(existingFileDataUrl);
         return;
       }
       if (colorHex && /^#[0-9A-Fa-f]{6}$/.test(colorHex)) {
@@ -455,7 +857,8 @@ function openBackgroundModal() {
         closeModals();
         showToast('Фон застосовано');
       } catch (_) {
-        errorEl.textContent = 'Оберіть колір або введіть URL зображення';
+        errorEl.textContent =
+          'Оберіть колір, файл зображення або посилання https://…';
         errorEl.style.display = 'block';
       }
     }
