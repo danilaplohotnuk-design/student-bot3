@@ -37,6 +37,38 @@ function loadVersionInfo() {
 const VERSION_INFO = loadVersionInfo();
 
 const REMINDER_FILE = path.join(__dirname, 'reminder.json');
+const BIRTHDAYS_FILE = path.join(__dirname, 'web', 'birthdays.json');
+
+function validateBirthdayRecord(e) {
+  if (!e || typeof e !== 'object') return null;
+  const m = parseInt(String(e.month), 10);
+  const d = parseInt(String(e.day), 10);
+  const name = typeof e.name === 'string' ? e.name.trim() : '';
+  if (!Number.isFinite(m) || !Number.isFinite(d)) return null;
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  if (!name || name.length > 200) return null;
+  return { month: m, day: d, name };
+}
+
+function readBirthdaysFromDisk() {
+  try {
+    const raw = fs.readFileSync(BIRTHDAYS_FILE, 'utf8');
+    const j = JSON.parse(raw);
+    const arr = Array.isArray(j.birthdays) ? j.birthdays : [];
+    return arr.map(validateBirthdayRecord).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function writeBirthdaysToDisk(birthdays) {
+  const sorted = [...birthdays].sort(
+    (a, b) => a.month - b.month || a.day - b.day || a.name.localeCompare(b.name, 'uk'),
+  );
+  fs.mkdirSync(path.dirname(BIRTHDAYS_FILE), { recursive: true });
+  fs.writeFileSync(BIRTHDAYS_FILE, `${JSON.stringify({ birthdays: sorted }, null, 2)}\n`, 'utf8');
+  return sorted;
+}
 
 /** { text, updatedAt } — updatedAt = час останньої зміни (ms), для «непрочитаного» на клієнті */
 function readReminderFromDisk() {
@@ -187,6 +219,12 @@ app.get('/api/reminder', (req, res) => {
   res.json(readReminderFromDisk());
 });
 
+// Дні народження (читається з web/birthdays.json)
+app.get('/api/birthdays', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ birthdays: readBirthdaysFromDisk() });
+});
+
 // --------- API: адмін-редагування (простий варіант у памʼяті) ---------
 
 // Middleware для простої перевірки пароля
@@ -271,6 +309,28 @@ app.put('/api/admin/reminder', requireAdmin, (req, res) => {
   const { text, updatedAt } = writeReminderToDisk(raw);
   res.set('Cache-Control', 'no-store');
   res.json({ ok: true, text, updatedAt });
+});
+
+// Дні народження: повна заміна списку (додавання / видалення з клієнта)
+app.put('/api/admin/birthdays', requireAdmin, (req, res) => {
+  const raw = req.body?.birthdays;
+  if (!Array.isArray(raw)) {
+    return res.status(400).json({ error: 'Потрібне поле birthdays (масив)' });
+  }
+  if (raw.length > 400) {
+    return res.status(400).json({ error: 'Занадто багато записів' });
+  }
+  const validated = [];
+  for (let i = 0; i < raw.length; i++) {
+    const v = validateBirthdayRecord(raw[i]);
+    if (!v) {
+      return res.status(400).json({ error: `Некоректний запис #${i + 1}` });
+    }
+    validated.push(v);
+  }
+  const saved = writeBirthdaysToDisk(validated);
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, birthdays: saved });
 });
 
 // --------- Старт сервера ---------

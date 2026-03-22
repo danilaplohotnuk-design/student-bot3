@@ -98,6 +98,7 @@ body {
   max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: 20px 16px 24px;
@@ -106,6 +107,17 @@ body {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
+}
+
+.schedule-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.schedule-view[hidden] {
+  display: none !important;
 }
 
 /* Повноекранне зображення під контентом (яскравість + затемнення) */
@@ -311,6 +323,273 @@ body:not(.admin-mode) .admin-exit-strip {
   font-size: 0.9375rem;
   font-weight: 500;
   color: var(--text-muted);
+}
+
+/* Панель «сьогодні / завтра ДН» на головному екрані */
+.birthday-home-notice {
+  margin: -4px 0 20px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-glass);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  border-left: 3px solid rgba(251, 191, 36, 0.85);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.birthday-home-notice:hover,
+.birthday-home-notice:focus-visible {
+  background: var(--bg-card-hover);
+  outline: none;
+}
+
+.birthday-home-notice__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.birthday-home-notice__hint {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+body[data-bg-mode='light'] .birthday-home-notice {
+  border-left-color: rgba(217, 119, 6, 0.85);
+}
+
+/* === Сторінка «Дні народження» === */
+.birthdays-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.birthdays-page[hidden] {
+  display: none !important;
+}
+
+.birthdays-page__header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.birthdays-page__back {
+  align-self: flex-start;
+}
+
+.birthdays-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+/* Редагування ДН (лише в режимі адміна) */
+.birthdays-admin-panel {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-glass);
+}
+
+.birthdays-admin-panel[hidden] {
+  display: none !important;
+}
+
+.birthdays-admin-panel__title {
+  margin: 0 0 12px;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.birthdays-admin-form__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.birthdays-admin-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.birthdays-admin-label--grow {
+  flex: 1 1 200px;
+}
+
+.birthdays-admin-label__text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.birthdays-admin-input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  font-size: 0.9375rem;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.birthdays-admin-label:not(.birthdays-admin-label--grow) .birthdays-admin-input {
+  width: 4.5rem;
+  max-width: 100%;
+}
+
+body[data-bg-mode='light'] .birthdays-admin-input {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.birthdays-admin-add-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.birthdays-admin-error {
+  margin: 10px 0 0;
+}
+
+.birthdays-page__empty {
+  margin: 0;
+  padding: 16px 12px;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.birthdays-list__row--with-actions {
+  align-items: center;
+  gap: 10px;
+}
+
+.birthdays-list__delete {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--error);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.birthdays-list__delete:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.birthdays-page__upcoming {
+  flex-shrink: 0;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border);
+  border-left: 3px solid rgba(251, 191, 36, 0.85);
+  box-shadow: var(--shadow-glass);
+}
+
+.birthdays-page__upcoming[hidden] {
+  display: none !important;
+}
+
+.birthdays-page__upcoming-line {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.birthdays-page__upcoming-line + .birthdays-page__upcoming-line {
+  margin-top: 6px;
+}
+
+.birthdays-page__list.birthdays-list {
+  flex: 1;
+  min-height: 120px;
+  max-height: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body[data-bg-mode='light'] .birthdays-page__upcoming {
+  border-left-color: rgba(217, 119, 6, 0.85);
+}
+
+.birthdays-list {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.12);
+  padding: 8px 10px;
+}
+
+body[data-bg-mode="light"] .birthdays-list {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.birthdays-list__row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+
+.birthdays-list__row:last-child {
+  border-bottom: none;
+}
+
+.birthdays-list__date {
+  flex: 0 0 3.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--time);
+}
+
+.birthdays-list__name {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  word-break: break-word;
 }
 
 /* === Date section === */
@@ -949,6 +1228,14 @@ body.admin-page .app-shell {
 .app-footer-text {
   font-size: 0.8125rem;
   color: var(--text-dim);
+}
+
+.app-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .app-footer-version {

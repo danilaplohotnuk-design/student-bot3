@@ -862,13 +862,45 @@ const TIME_SLOTS = [
   { label: '14:10–15:30', startTime: '14:10', endTime: '15:30' },
 ];
 
-function setDateLabel(dateStr) {
-  const d = new Date(dateStr);
-  const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
-  dateLabel.textContent = d.toLocaleDateString('uk-UA', options);
+/** Дні тижня — іменний відмінок (Intl для uk часто дає форму з прийменником / не іменний). */
+const UK_WEEKDAY_NOMINATIVE = [
+  'неділя',
+  'понеділок',
+  'вівторок',
+  'середа',
+  'четвер',
+  "п'ятниця",
+  'субота',
+];
+
+/** Місяці — родовий відмінок для «24 березня». */
+const UK_MONTH_GENITIVE = [
+  'січня',
+  'лютого',
+  'березня',
+  'квітня',
+  'травня',
+  'червня',
+  'липня',
+  'серпня',
+  'вересня',
+  'жовтня',
+  'листопада',
+  'грудня',
+];
+
+/** Підзаголовок під «Розклад» — завжди реальна сьогоднішня дата пристрою (не дата з календаря розкладу). */
+function setHeaderTodayDateLabel() {
+  const d = new Date();
+  const weekday = UK_WEEKDAY_NOMINATIVE[d.getDay()];
+  const day = d.getDate();
+  const month = UK_MONTH_GENITIVE[d.getMonth()];
+  const year = d.getFullYear();
+  dateLabel.textContent = `${weekday}, ${day} ${month} ${year} р.`;
 }
 
 async function loadSchedule(date) {
+  setHeaderTodayDateLabel();
   scheduleContainer.innerHTML = `
     <div class="state-message">
       Завантаження
@@ -883,6 +915,7 @@ async function loadSchedule(date) {
   } catch (err) {
     scheduleContainer.innerHTML = '<p class="state-message error">Не вдалося завантажити розклад</p>';
     console.error(err);
+    setHeaderTodayDateLabel();
   }
 }
 
@@ -1053,7 +1086,7 @@ function appendLessonCard(date, lesson) {
 }
 
 function renderSchedule(date, lessons) {
-  setDateLabel(date);
+  setHeaderTodayDateLabel();
   currentScheduleDate = date || '';
   scheduleContainer.innerHTML = '';
 
@@ -1200,6 +1233,266 @@ function applySwipeSnapAnimation(front, actions, finalX) {
       actions.setAttribute('aria-hidden', 'false');
     }
   }
+}
+
+// --------- Дні народження ---------
+let birthdaysList = [];
+
+function padBirthdayNum(n) {
+  return String(n).padStart(2, '0');
+}
+
+function normalizeBirthdayEntry(raw) {
+  const m = parseInt(String(raw?.month), 10);
+  const d = parseInt(String(raw?.day), 10);
+  const name = typeof raw?.name === 'string' ? raw.name.trim() : '';
+  if (!name || name.length > 200 || !Number.isFinite(m) || !Number.isFinite(d)) return null;
+  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+  return { month: m, day: d, name };
+}
+
+async function loadBirthdaysJson() {
+  try {
+    const r = await fetch('/api/birthdays', { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json();
+    const arr = Array.isArray(data?.birthdays) ? data.birthdays : [];
+    birthdaysList = arr.map(normalizeBirthdayEntry).filter(Boolean);
+  } catch (_) {
+    birthdaysList = [];
+  }
+}
+
+async function saveBirthdaysListToServer(list) {
+  const errEl = document.getElementById('birthdays-admin-error');
+  if (errEl) {
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+  }
+  try {
+    const res = await fetch('/api/admin/birthdays', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': storedAdminPassword,
+      },
+      body: JSON.stringify({ birthdays: list }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = data.error || 'Не вдалося зберегти';
+      if (errEl) {
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+      } else {
+        showToast(msg);
+      }
+      return false;
+    }
+    const arr = Array.isArray(data.birthdays) ? data.birthdays : list;
+    birthdaysList = arr.map(normalizeBirthdayEntry).filter(Boolean);
+    return true;
+  } catch (_) {
+    const msg = 'Немає звʼязку з сервером';
+    if (errEl) {
+      errEl.textContent = msg;
+      errEl.style.display = 'block';
+    }
+    showToast(msg);
+    return false;
+  }
+}
+
+async function birthdaysAdminSubmitAdd() {
+  if (!adminMode || !storedAdminPassword) return;
+  const dayEl = document.getElementById('birthdays-admin-day');
+  const monthEl = document.getElementById('birthdays-admin-month');
+  const nameEl = document.getElementById('birthdays-admin-name');
+  const errEl = document.getElementById('birthdays-admin-error');
+  if (errEl) {
+    errEl.style.display = 'none';
+    errEl.textContent = '';
+  }
+  const entry = normalizeBirthdayEntry({
+    day: dayEl?.value,
+    month: monthEl?.value,
+    name: nameEl?.value,
+  });
+  if (!entry) {
+    if (errEl) {
+      errEl.textContent =
+        'Вкажіть день (1–31), місяць (1–12) і прізвище та імʼя (до 200 символів).';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+  const dup = birthdaysList.some(
+    (b) => b.month === entry.month && b.day === entry.day && b.name === entry.name,
+  );
+  if (dup) {
+    if (errEl) {
+      errEl.textContent = 'Такий запис уже є в списку.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+  const next = [...birthdaysList, entry];
+  const ok = await saveBirthdaysListToServer(next);
+  if (!ok) return;
+  if (dayEl) dayEl.value = '';
+  if (monthEl) monthEl.value = '';
+  if (nameEl) nameEl.value = '';
+  renderBirthdaysPageContent();
+  updateBirthdayHomeNotice();
+  showToast('День народження додано');
+}
+
+async function birthdaysAdminRemove(entry) {
+  if (!adminMode || !storedAdminPassword) return;
+  const v = normalizeBirthdayEntry(entry);
+  if (!v) return;
+  const next = birthdaysList.filter(
+    (b) => !(b.month === v.month && b.day === v.day && b.name === v.name),
+  );
+  if (next.length === birthdaysList.length) return;
+  const ok = await saveBirthdaysListToServer(next);
+  if (!ok) return;
+  renderBirthdaysPageContent();
+  updateBirthdayHomeNotice();
+  showToast('Запис видалено');
+}
+
+function sortBirthdaysChrono(items) {
+  return [...items].sort((a, b) => a.month - b.month || a.day - b.day || a.name.localeCompare(b.name, 'uk'));
+}
+
+function birthdaysOnCalendarDay(month, day) {
+  return birthdaysList.filter((b) => b.month === month && b.day === day);
+}
+
+function todayLocalMd() {
+  const x = new Date();
+  return { month: x.getMonth() + 1, day: x.getDate() };
+}
+
+function tomorrowLocalMd() {
+  const x = new Date();
+  x.setDate(x.getDate() + 1);
+  return { month: x.getMonth() + 1, day: x.getDate() };
+}
+
+/** Текст рядків «Сьогодні» / «Завтра день народження» для головної панелі та сторінки ДН. */
+function getBirthdayUpcomingLinesHtml() {
+  if (!birthdaysList.length) return { html: '', hasAny: false };
+  const t = todayLocalMd();
+  const tm = tomorrowLocalMd();
+  const todayNames = birthdaysOnCalendarDay(t.month, t.day);
+  const tomorrowNames = birthdaysOnCalendarDay(tm.month, tm.day);
+  if (!todayNames.length && !tomorrowNames.length) return { html: '', hasAny: false };
+  const blocks = [];
+  if (todayNames.length) {
+    const joined = todayNames.map((n) => n.name).join(', ');
+    blocks.push(`<p class="birthdays-page__upcoming-line">Сьогодні: ${escapeHtml(joined)}</p>`);
+  }
+  if (tomorrowNames.length) {
+    const joined = tomorrowNames.map((n) => n.name).join(', ');
+    blocks.push(`<p class="birthdays-page__upcoming-line">Завтра день народження: ${escapeHtml(joined)}</p>`);
+  }
+  return { html: blocks.join(''), hasAny: true };
+}
+
+function updateBirthdayHomeNotice() {
+  const root = document.getElementById('birthday-home-notice');
+  const inner = document.getElementById('birthday-home-notice-inner');
+  if (!root || !inner) return;
+  const { html, hasAny } = getBirthdayUpcomingLinesHtml();
+  if (!hasAny) {
+    root.hidden = true;
+    inner.innerHTML = '';
+    return;
+  }
+  inner.innerHTML = html;
+  root.hidden = false;
+}
+
+async function openBirthdaysPageWithLoad() {
+  await loadBirthdaysJson();
+  if (!birthdaysList.length && !adminMode) {
+    showToast('Не вдалося завантажити дні народження або список порожній');
+    return;
+  }
+  showBirthdaysPage();
+}
+
+function isBirthdaysPageVisible() {
+  const p = document.getElementById('birthdays-page');
+  return Boolean(p && !p.hidden);
+}
+
+function renderBirthdaysPageContent() {
+  const listEl = document.getElementById('birthdays-page-list');
+  const upcomingEl = document.getElementById('birthdays-page-upcoming');
+  if (!listEl || !upcomingEl) return;
+
+  if (!birthdaysList.length) {
+    listEl.innerHTML = adminMode
+      ? '<p class="birthdays-page__empty">Список порожній. Додайте запис у формі вище.</p>'
+      : '<p class="birthdays-page__empty">Немає записів.</p>';
+  } else {
+    const sorted = sortBirthdaysChrono(birthdaysList);
+    listEl.innerHTML = sorted
+      .map((b) => {
+        const payload = encodeURIComponent(JSON.stringify({ month: b.month, day: b.day, name: b.name }));
+        const delBtn = adminMode
+          ? `<button type="button" class="birthdays-list__delete" data-birthday-entry="${payload}" aria-label="Видалити запис">Видалити</button>`
+          : '';
+        return `<div class="birthdays-list__row birthdays-list__row--with-actions" role="listitem"><span class="birthdays-list__date">${escapeHtml(
+          padBirthdayNum(b.day),
+        )}.${escapeHtml(padBirthdayNum(b.month))}</span><span class="birthdays-list__name">${escapeHtml(b.name)}</span>${delBtn}</div>`;
+      })
+      .join('');
+  }
+
+  const { html, hasAny } = getBirthdayUpcomingLinesHtml();
+  if (!hasAny) {
+    upcomingEl.hidden = true;
+    upcomingEl.innerHTML = '';
+  } else {
+    upcomingEl.innerHTML = html;
+    upcomingEl.hidden = false;
+  }
+}
+
+function birthdaysPageEscapeHandler(e) {
+  if (e.key === 'Escape' && isBirthdaysPageVisible()) hideBirthdaysPage();
+}
+
+function showBirthdaysPage() {
+  const sv = document.getElementById('schedule-view');
+  const bp = document.getElementById('birthdays-page');
+  if (!sv || !bp) return;
+  closeReminderPopover();
+  const overlay = document.getElementById('schedule-modal-overlay');
+  if (overlay) overlay.remove();
+  sv.hidden = true;
+  bp.hidden = false;
+  const bap = document.getElementById('birthdays-admin-panel');
+  if (bap) bap.hidden = !adminMode;
+  renderBirthdaysPageContent();
+  window.removeEventListener('keydown', birthdaysPageEscapeHandler);
+  window.addEventListener('keydown', birthdaysPageEscapeHandler);
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+}
+
+function hideBirthdaysPage() {
+  window.removeEventListener('keydown', birthdaysPageEscapeHandler);
+  const sv = document.getElementById('schedule-view');
+  const bp = document.getElementById('birthdays-page');
+  if (sv) sv.hidden = false;
+  if (bp) bp.hidden = true;
+  updateBirthdayHomeNotice();
 }
 
 function closeModals() {
@@ -1520,6 +1813,9 @@ function syncAdminChrome() {
   const banner = document.getElementById('admin-mode-banner');
   if (strip) strip.hidden = !adminMode;
   if (banner) banner.hidden = !adminMode;
+  const bap = document.getElementById('birthdays-admin-panel');
+  if (bap) bap.hidden = !adminMode;
+  if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
   syncReminderTrigger();
 }
 
@@ -2022,10 +2318,67 @@ applyBackground(getStoredBackground());
 
 const initialDate = todayISO();
 dateInput.value = initialDate;
+setHeaderTodayDateLabel();
 loadSchedule(initialDate);
 fetchReminderFromServer();
+loadBirthdaysJson().then(() => {
+  updateBirthdayHomeNotice();
+  if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    setHeaderTodayDateLabel();
+    updateBirthdayHomeNotice();
+    if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
+  }
+});
 
 document.getElementById('bg-btn').addEventListener('click', () => openBackgroundModal());
+
+const birthdaysBtn = document.getElementById('birthdays-btn');
+if (birthdaysBtn) {
+  birthdaysBtn.addEventListener('click', () => openBirthdaysPageWithLoad());
+}
+
+document.getElementById('birthdays-back-btn')?.addEventListener('click', () => hideBirthdaysPage());
+
+document.getElementById('birthdays-admin-add')?.addEventListener('click', () => birthdaysAdminSubmitAdd());
+
+['birthdays-admin-day', 'birthdays-admin-month', 'birthdays-admin-name'].forEach((id) => {
+  document.getElementById(id)?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      birthdaysAdminSubmitAdd();
+    }
+  });
+});
+
+const birthdaysPageEl = document.getElementById('birthdays-page');
+if (birthdaysPageEl) {
+  birthdaysPageEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-birthday-entry]');
+    if (!btn || !adminMode) return;
+    let entry;
+    try {
+      entry = JSON.parse(decodeURIComponent(btn.getAttribute('data-birthday-entry') || ''));
+    } catch (_) {
+      return;
+    }
+    e.preventDefault();
+    birthdaysAdminRemove(entry);
+  });
+}
+
+const birthdayHomeNotice = document.getElementById('birthday-home-notice');
+if (birthdayHomeNotice) {
+  birthdayHomeNotice.addEventListener('click', () => openBirthdaysPageWithLoad());
+  birthdayHomeNotice.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openBirthdaysPageWithLoad();
+    }
+  });
+}
 
 const versionSecretBtn = document.getElementById('version-secret-trigger');
 if (versionSecretBtn) {

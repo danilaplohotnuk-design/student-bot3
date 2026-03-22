@@ -11,6 +11,7 @@
 <body>
   <div class="app-tba-watermark" aria-hidden="true">ТБА</div>
   <div class="app-shell" id="app-shell">
+    <div id="schedule-view" class="schedule-view">
     <header class="app-header">
       <div class="app-header-inner">
         <h1 class="app-title">Розклад</h1>
@@ -29,6 +30,18 @@
       </div>
     </section>
 
+    <div
+      id="birthday-home-notice"
+      class="birthday-home-notice"
+      hidden
+      role="button"
+      tabindex="0"
+      aria-label="Відкрити сторінку днів народження"
+    >
+      <div class="birthday-home-notice__inner" id="birthday-home-notice-inner"></div>
+      <span class="birthday-home-notice__hint">Натисніть, щоб переглянути всі дні народження</span>
+    </div>
+
     <div id="admin-mode-banner" class="admin-mode-banner" hidden>
       <p class="admin-mode-banner-title">Режим редагування</p>
       <div class="admin-mode-banner-rule" aria-hidden="true"></div>
@@ -46,12 +59,79 @@
 
     <footer class="app-footer">
       <span class="app-footer-text">Розклад для студентів</span>
-      <button type="button" id="bg-btn" class="btn-bg" title="Фон">Фон</button>
+      <div class="app-footer-actions">
+        <button type="button" id="birthdays-btn" class="btn-bg" title="Дні народження" aria-label="Усі дні народження">
+          ДН
+        </button>
+        <button type="button" id="bg-btn" class="btn-bg" title="Фон">Фон</button>
+      </div>
       <div class="app-footer-version-wrap">
         <span id="app-version" class="app-footer-version" aria-label="Версія додатку"></span>
         <button type="button" id="version-secret-trigger" class="version-secret-trigger" tabindex="-1" aria-hidden="true" title=""></button>
       </div>
     </footer>
+    </div>
+
+    <section id="birthdays-page" class="birthdays-page" hidden aria-label="Дні народження">
+      <header class="birthdays-page__header">
+        <button type="button" id="birthdays-back-btn" class="birthdays-page__back btn-bg" aria-label="Назад до розкладу">
+          ← Назад
+        </button>
+        <h1 class="birthdays-page__title">Дні народження</h1>
+      </header>
+
+      <div id="birthdays-admin-panel" class="birthdays-admin-panel" hidden>
+        <p class="birthdays-admin-panel__title">Додати день народження</p>
+        <div class="birthdays-admin-form">
+          <div class="birthdays-admin-form__row">
+            <label class="birthdays-admin-label">
+              <span class="birthdays-admin-label__text">День</span>
+              <input
+                type="number"
+                id="birthdays-admin-day"
+                class="birthdays-admin-input"
+                min="1"
+                max="31"
+                inputmode="numeric"
+                placeholder="1–31"
+                autocomplete="off"
+              />
+            </label>
+            <label class="birthdays-admin-label">
+              <span class="birthdays-admin-label__text">Місяць</span>
+              <input
+                type="number"
+                id="birthdays-admin-month"
+                class="birthdays-admin-input"
+                min="1"
+                max="12"
+                inputmode="numeric"
+                placeholder="1–12"
+                autocomplete="off"
+              />
+            </label>
+            <label class="birthdays-admin-label birthdays-admin-label--grow">
+              <span class="birthdays-admin-label__text">Прізвище та імʼя</span>
+              <input
+                type="text"
+                id="birthdays-admin-name"
+                class="birthdays-admin-input"
+                maxlength="200"
+                placeholder="Наприклад: Шевченко Тарас"
+                autocomplete="name"
+              />
+            </label>
+          </div>
+          <button type="button" id="birthdays-admin-add" class="modal-btn modal-btn-primary birthdays-admin-add-btn">
+            Додати
+          </button>
+        </div>
+        <p id="birthdays-admin-error" class="modal-error birthdays-admin-error" style="display: none"></p>
+      </div>
+
+      <div id="birthdays-page-upcoming" class="birthdays-page__upcoming" hidden></div>
+      <div id="birthdays-page-list" class="birthdays-page__list birthdays-list" role="list"></div>
+    </section>
   </div>
 
   <button
