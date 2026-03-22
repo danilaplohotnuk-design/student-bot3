@@ -336,6 +336,360 @@ body[data-bg-mode='light'] .admin-nav-dock__btn--exit {
   border-color: rgba(220, 38, 38, 0.35);
 }
 
+/* ---------- Звичайний режим: нижня панель (важливо / розклад / погода / налаштування) ---------- */
+body:not(.admin-mode) .app-shell {
+  padding-bottom: calc(24px + 64px + env(safe-area-inset-bottom));
+}
+
+.user-nav-dock {
+  position: fixed;
+  z-index: 300;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 100%;
+  max-width: 480px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 4px;
+  padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+  background: rgba(15, 19, 32, 0.88);
+  backdrop-filter: blur(var(--glass-blur-strong));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong));
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.user-nav-dock[hidden] {
+  display: none !important;
+}
+
+body.admin-mode .user-nav-dock {
+  display: none !important;
+}
+
+.user-nav-dock__btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 2px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.user-nav-dock__svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  flex-shrink: 0;
+  display: block;
+  color: inherit;
+}
+
+.user-nav-dock__label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  text-align: center;
+  color: inherit;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-nav-dock__btn:hover {
+  background: var(--bg-card-hover);
+}
+
+.user-nav-dock__btn--active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+  color: var(--accent);
+}
+
+body[data-bg-mode='light'] .user-nav-dock {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.08);
+}
+
+/* Сторінка «Налаштування» (фон, ДН, прихована зона версії) */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-page[hidden] {
+  display: none !important;
+}
+
+.settings-page__header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+.settings-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.settings-page__tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.settings-page__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-page__tile:hover {
+  background: var(--bg-card-hover);
+}
+
+.settings-page__tile-label {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.settings-page__tile-hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.settings-page__footer {
+  position: relative;
+  margin-top: auto;
+  padding-top: 32px;
+  padding-bottom: 4px;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+}
+
+.settings-page__version {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  opacity: 0.4;
+  text-align: center;
+}
+
+.settings-page__version-secret.version-secret-trigger {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(100%, 280px);
+  height: 48px;
+  opacity: 0;
+  cursor: default;
+}
+
+/* Сторінка «Фон екрана» (налаштування з налаштувань) */
+.bg-settings-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.bg-settings-page[hidden] {
+  display: none !important;
+}
+
+.bg-settings-page__header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.bg-settings-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.bg-settings-page__lede {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.bg-settings-page__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bg-settings-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+  padding-bottom: 8px;
+}
+
+.bg-settings-page__actions .modal-btn {
+  flex: 1 1 auto;
+  min-width: 120px;
+}
+
+/* Сторінка «Важливо» для студентів (перегляд) */
+.student-important-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.student-important-page[hidden] {
+  display: none !important;
+}
+
+.student-important-page__header {
+  flex-shrink: 0;
+}
+
+.student-important-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.student-important-page__current-wrap {
+  flex-shrink: 0;
+}
+
+.student-important-current {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+}
+
+.student-important-current--empty .student-important-page__empty {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.student-important-page__status {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--success);
+}
+
+.student-important-page__body {
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.student-important-page__history-block {
+  flex-shrink: 0;
+}
+
+.student-important-page__history-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Кружок «нове» — верхній правий кут */
+.reminder-unread-dot {
+  position: fixed;
+  top: max(10px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 400;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--error);
+  box-shadow: 0 0 0 2px rgba(15, 19, 32, 0.9);
+  pointer-events: none;
+}
+
+.reminder-unread-dot[hidden] {
+  display: none !important;
+}
+
+body[data-bg-mode='light'] .reminder-unread-dot {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
 /* Сторінка «Важливо» (редагування нагадування) */
 .important-page {
   display: flex;
@@ -531,7 +885,7 @@ body[data-bg-mode='light'] .important-page__textarea {
   margin-bottom: 20px;
 }
 
-.app-header-btn {
+.app-header-block {
   display: block;
   width: 100%;
   margin: 0;
@@ -542,16 +896,13 @@ body[data-bg-mode='light'] .important-page__textarea {
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  cursor: pointer;
   text-align: left;
   font: inherit;
   color: inherit;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.2s ease;
 }
 
-/* Скло лише з «протилежного» боку: зі сторони розкладу (ліворуч) прозоро → до стилю btn-bg */
-.app-header-btn::before {
+/* Скло з боку розкладу (ліворуч) щільніше → до правого краю розмивається (віддзеркалено від колишньої маски) */
+.app-header-block::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -564,14 +915,14 @@ body[data-bg-mode='light'] .important-page__textarea {
   border: 1px solid var(--border);
   box-shadow: var(--shadow-glass);
   -webkit-mask-image: linear-gradient(
-    90deg,
+    to left,
     transparent 0%,
     rgba(0, 0, 0, 0.2) 28%,
     rgba(0, 0, 0, 0.75) 52%,
     #000 78%
   );
   mask-image: linear-gradient(
-    90deg,
+    to left,
     transparent 0%,
     rgba(0, 0, 0, 0.2) 28%,
     rgba(0, 0, 0, 0.75) 52%,
@@ -582,48 +933,11 @@ body[data-bg-mode='light'] .important-page__textarea {
   transition: filter 0.2s ease, opacity 0.2s ease;
 }
 
-.app-header-btn:hover::before {
-  filter: brightness(1.12);
-}
-
-.app-header-btn:focus {
-  outline: none;
-}
-
-.app-header-btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
-
-.app-header-btn__inner {
+.app-header-block__text {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
   width: 100%;
   text-align: left;
-}
-
-.app-header-btn__schedule {
-  flex: 1;
-  min-width: 0;
-  display: block;
-  text-align: left;
-}
-
-.app-header-btn__weather-label {
-  flex-shrink: 0;
-  align-self: center;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-  opacity: 0.92;
-  white-space: nowrap;
 }
 
 .app-title {
@@ -662,11 +976,6 @@ body[data-bg-mode='light'] .important-page__textarea {
   z-index: 1;
   flex-shrink: 0;
   margin-bottom: 0;
-}
-
-.weather-page__back {
-  align-self: flex-start;
-  margin-bottom: 12px;
 }
 
 .weather-page__title {
@@ -1023,6 +1332,9 @@ body[data-bg-mode='light'] .weather-search-card:hover {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* місце зверху, щоб анімація «падіння» першої картки не обрізалась у скролі */
+  padding-top: 44px;
+  box-sizing: border-box;
 }
 
 .weather-page__state {
@@ -1051,6 +1363,26 @@ body[data-bg-mode='light'] .weather-search-card:hover {
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--border);
   box-shadow: var(--shadow-glass);
+}
+
+/* Послідовна анімація появи (як у карток пар у розкладі) */
+.weather-day--enter.weather-day {
+  animation: lesson-card-enter-drop 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--weather-enter-delay, 0ms);
+  transform-origin: 50% 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weather-day--enter.weather-day {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Компенсація padding-top у body: без зайвого «вікна» над першою карткою */
+.weather-page__body > .weather-day:first-child {
+  margin-top: -32px;
 }
 
 .weather-day__main {
@@ -1206,14 +1538,10 @@ body[data-bg-mode='light'] .weather-search-card:hover {
   color: var(--text-muted);
 }
 
-body[data-bg-mode='light'] .app-header-btn::before {
+body[data-bg-mode='light'] .app-header-block::before {
   background: rgba(255, 255, 255, 0.22);
   border-color: var(--border);
   box-shadow: var(--shadow-glass);
-}
-
-body[data-bg-mode='light'] .app-header-btn:hover::before {
-  filter: brightness(0.97);
 }
 
 /* Панель «сьогодні / завтра ДН» на головному екрані */

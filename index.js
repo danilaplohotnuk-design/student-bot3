@@ -230,20 +230,21 @@ app.get('/api/zoom-link', (req, res) => {
 /** Публічне нагадування видно студентам лише 24 год з моменту збереження (якщо не з’явилось нове) */
 const REMINDER_PUBLIC_TTL_MS = 24 * 60 * 60 * 1000;
 
-// Текст нагадування (для всіх; зберігається в reminder.json на сервері)
+// Текст нагадування + історія версій (для всіх; текст приховується після 24 год, історія лишається)
 app.get('/api/reminder', (req, res) => {
   res.set('Cache-Control', 'no-store');
   const r = readReminderFromDisk();
   const text = typeof r.text === 'string' ? r.text : '';
   const ts = Number(r.updatedAt);
+  const history = Array.isArray(r.history) ? r.history : [];
   const hasText = text.trim().length > 0;
   if (!hasText || !Number.isFinite(ts) || ts <= 0) {
-    return res.json({ text: '', updatedAt: Number.isFinite(ts) ? ts : 0 });
+    return res.json({ text: '', updatedAt: Number.isFinite(ts) ? ts : 0, history });
   }
   if (Date.now() - ts > REMINDER_PUBLIC_TTL_MS) {
-    return res.json({ text: '', updatedAt: ts });
+    return res.json({ text: '', updatedAt: ts, history });
   }
-  res.json({ text, updatedAt: ts });
+  res.json({ text, updatedAt: ts, history });
 });
 
 // Повне нагадування + історія (лише адмін)

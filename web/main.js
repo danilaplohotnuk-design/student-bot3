@@ -132,6 +132,20 @@ function stampLessonCardEnter(el) {
   el.classList.add('lesson-card--enter');
 }
 
+/** Порядкова анімація появи карток погоди (як у пар) */
+let weatherCardEnterIndex = 0;
+const WEATHER_ENTER_STAGGER_MS = 72;
+
+function stampWeatherCardEnter(el) {
+  if (!el) return;
+  try {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  } catch (_) {}
+  el.style.setProperty('--weather-enter-delay', `${weatherCardEnterIndex * WEATHER_ENTER_STAGGER_MS}ms`);
+  weatherCardEnterIndex += 1;
+  el.classList.add('weather-day--enter');
+}
+
 let currentScheduleDate = ''; // дата відкритого розкладу (для форми зміни пари)
 
 // Захист від випадкового натискання: подвійний тап для Zoom
@@ -627,10 +641,21 @@ function applyBackground(prefs) {
   }
 }
 
-function openBackgroundModal() {
-  closeModals();
+let bgFormNewFileDataUrl = null;
+let bgFormStripExistingFileBg = false;
+/** Збережене data:image з localStorage (для повторного збереження без змін) */
+let bgFormExistingFileDataUrl = null;
+
+function isBgSettingsPageVisible() {
+  const p = document.getElementById('bg-settings-page');
+  return Boolean(p && !p.hidden);
+}
+
+function refreshBackgroundFormFromStorage() {
   const stored = getStoredBackground();
-  const existingFileDataUrl =
+  bgFormNewFileDataUrl = null;
+  bgFormStripExistingFileBg = false;
+  bgFormExistingFileDataUrl =
     stored?.type === 'image' && String(stored.value).startsWith('data:image/') ? stored.value : null;
   const initialImageUrl =
     stored?.type === 'image' && /^https?:\/\//i.test(String(stored.value)) ? stored.value : '';
@@ -646,111 +671,66 @@ function openBackgroundModal() {
       ? clampBg(Number(stored.blurSharp), 0, 100)
       : 50;
 
-  let newFileDataUrl = null;
-  let stripExistingFileBg = false;
+  const colorInput = document.getElementById('modal-bg-color');
+  const hexInput = document.getElementById('modal-bg-color-hex');
+  const imageInput = document.getElementById('modal-bg-image');
+  const fileInput = document.getElementById('modal-bg-file');
+  const fileHint = document.getElementById('modal-bg-file-hint');
+  const previewWrap = document.getElementById('modal-bg-preview-wrap');
+  const previewImg = document.getElementById('modal-bg-preview-img');
+  const previewShade = document.getElementById('modal-bg-preview-shade');
+  const adjustWrap = document.getElementById('modal-bg-adjust');
+  const darkBrightRange = document.getElementById('modal-bg-dark-bright');
+  const blurSharpRange = document.getElementById('modal-bg-blur-sharp');
+  const darkBrightValEl = document.getElementById('modal-bg-dark-bright-val');
+  const blurSharpValEl = document.getElementById('modal-bg-blur-sharp-val');
+  const errorEl = document.getElementById('modal-bg-error');
 
-  const overlay = document.createElement('div');
-  overlay.id = 'schedule-modal-overlay';
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = `
-    <div class="modal-box modal-form">
-      <h3 class="modal-title">Фон екрана</h3>
-      <p class="modal-hint">Колір, посилання на зображення або файл із галереї / комп’ютера</p>
-      <div class="bg-options">
-        <label class="modal-label">Колір</label>
-        <div class="bg-color-row">
-          <input type="color" id="modal-bg-color" value="${stored?.type === 'color' ? stored.value : '#1a1f35'}" class="modal-color-input" />
-          <input type="text" id="modal-bg-color-hex" class="modal-input modal-input-inline" placeholder="#1a1f35" maxlength="7" value="${stored?.type === 'color' ? stored.value : ''}" />
-        </div>
-        <label class="modal-label" style="margin-top:16px">Зображення з телефону чи ПК</label>
-        <div class="bg-file-row">
-          <input type="file" id="modal-bg-file" class="modal-file-input" accept="image/*" tabindex="-1" aria-hidden="true" />
-          <button type="button" class="modal-btn modal-btn-secondary modal-btn-file" id="modal-bg-file-trigger">Обрати зображення</button>
-          <span class="bg-file-hint" id="modal-bg-file-hint"></span>
-        </div>
-        <label class="modal-label" style="margin-top:16px">Зображення (URL)</label>
-        <input type="url" id="modal-bg-image" class="modal-input" placeholder="https://..." value="${escapeHtml(initialImageUrl)}" />
-        <p class="modal-hint modal-hint-sm" style="margin-top:8px">Тут ви можете завантажити зображення через посилання</p>
-        <div id="modal-bg-preview-wrap" class="bg-preview-wrap" hidden>
-          <div class="bg-preview-stage">
-            <img id="modal-bg-preview-img" class="bg-preview-img" alt="" />
-            <div id="modal-bg-preview-shade" class="bg-preview-shade"></div>
-          </div>
-          <button type="button" class="modal-btn-text" id="modal-bg-remove-file">Прибрати фото</button>
-        </div>
-        <div id="modal-bg-adjust" class="bg-adjust-wrap" hidden>
-          <label class="modal-label" for="modal-bg-dark-bright">Затемнення / яскравість</label>
-          <div class="bg-adjust-row">
-            <input type="range" id="modal-bg-dark-bright" class="bg-adjust-slider" min="0" max="100" value="${storedUnified}" />
-            <span id="modal-bg-dark-bright-val" class="bg-adjust-value bg-adjust-value--wide">${escapeHtml(formatDarkBrightLabel(storedUnified))}</span>
-          </div>
-          <label class="modal-label" for="modal-bg-blur-sharp">Розмиття / різкість</label>
-          <div class="bg-adjust-row">
-            <input type="range" id="modal-bg-blur-sharp" class="bg-adjust-slider" min="0" max="100" value="${storedBlurSharp}" />
-            <span id="modal-bg-blur-sharp-val" class="bg-adjust-value bg-adjust-value--wide">${escapeHtml(formatBlurSharpLabel(storedBlurSharp))}</span>
-          </div>
-        </div>
-      </div>
-      <p id="modal-bg-error" class="modal-error" style="display:none;"></p>
-      <div class="modal-actions" style="margin-top:20px">
-        <button type="button" class="modal-btn modal-btn-secondary" data-action="reset-bg">Скинути</button>
-        <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
-        <button type="button" class="modal-btn modal-btn-primary" data-action="save-bg">Застосувати</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(overlay);
+  if (!colorInput || !hexInput || !imageInput || !previewWrap || !previewImg) return;
 
-  const colorInput = overlay.querySelector('#modal-bg-color');
-  const hexInput = overlay.querySelector('#modal-bg-color-hex');
-  const imageInput = overlay.querySelector('#modal-bg-image');
-  const fileInput = overlay.querySelector('#modal-bg-file');
-  const fileTrigger = overlay.querySelector('#modal-bg-file-trigger');
-  const fileHint = overlay.querySelector('#modal-bg-file-hint');
-  const previewWrap = overlay.querySelector('#modal-bg-preview-wrap');
-  const previewImg = overlay.querySelector('#modal-bg-preview-img');
-  const previewShade = overlay.querySelector('#modal-bg-preview-shade');
-  const adjustWrap = overlay.querySelector('#modal-bg-adjust');
-  const darkBrightRange = overlay.querySelector('#modal-bg-dark-bright');
-  const blurSharpRange = overlay.querySelector('#modal-bg-blur-sharp');
-  const darkBrightValEl = overlay.querySelector('#modal-bg-dark-bright-val');
-  const blurSharpValEl = overlay.querySelector('#modal-bg-blur-sharp-val');
-  const removeFileBtn = overlay.querySelector('#modal-bg-remove-file');
-  const errorEl = overlay.querySelector('#modal-bg-error');
+  const colorVal = stored?.type === 'color' ? stored.value : '#1a1f35';
+  colorInput.value = colorVal;
+  hexInput.value = stored?.type === 'color' ? stored.value : '';
+  imageInput.value = initialImageUrl;
+  if (fileInput) fileInput.value = '';
+  if (errorEl) {
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+  }
+  if (darkBrightRange) darkBrightRange.value = String(storedUnified);
+  if (blurSharpRange) blurSharpRange.value = String(storedBlurSharp);
+  if (darkBrightValEl) darkBrightValEl.textContent = formatDarkBrightLabel(storedUnified);
+  if (blurSharpValEl) blurSharpValEl.textContent = formatBlurSharpLabel(storedBlurSharp);
 
   const syncModalPreviewAdjust = () => {
     const u = readUnifiedDarkBrightSlider(darkBrightRange);
     const { darken: d, brightness: br } = darkBrightFromUnifiedSlider(u);
     const bs = readBlurSharpSlider(blurSharpRange);
-    darkBrightValEl.textContent = formatDarkBrightLabel(u);
-    blurSharpValEl.textContent = formatBlurSharpLabel(bs);
+    if (darkBrightValEl) darkBrightValEl.textContent = formatDarkBrightLabel(u);
+    if (blurSharpValEl) blurSharpValEl.textContent = formatBlurSharpLabel(bs);
     if (!previewWrap.hidden && previewImg.getAttribute('src')) {
       previewImg.style.filter = buildBgImageFilter(br, bs);
-      previewShade.style.backgroundColor = `rgba(0,0,0,${d / 100})`;
+      if (previewShade) previewShade.style.backgroundColor = `rgba(0,0,0,${d / 100})`;
     }
   };
 
   const refreshAdjustVisibility = () => {
     const urlOk = /^https?:\/\//i.test(imageInput.value.trim());
     const hasPreview = !previewWrap.hidden && !!previewImg.getAttribute('src');
-    adjustWrap.hidden = !(urlOk || hasPreview);
+    if (adjustWrap) adjustWrap.hidden = !(urlOk || hasPreview);
   };
 
-  const showPreview = (src) => {
-    previewImg.src = src;
-    previewWrap.hidden = false;
-    syncModalPreviewAdjust();
-    refreshAdjustVisibility();
-  };
   const hidePreview = () => {
     previewWrap.hidden = true;
     previewImg.removeAttribute('src');
     previewImg.style.filter = '';
-    previewShade.style.backgroundColor = 'rgba(0,0,0,0)';
+    if (previewShade) previewShade.style.backgroundColor = 'rgba(0,0,0,0)';
     refreshAdjustVisibility();
   };
 
-  if (existingFileDataUrl) {
+  if (fileHint) fileHint.textContent = '';
+
+  if (bgFormExistingFileDataUrl) {
     previewImg.onload = () => {
       syncModalPreviewAdjust();
       refreshAdjustVisibility();
@@ -759,11 +739,11 @@ function openBackgroundModal() {
       hidePreview();
       refreshAdjustVisibility();
     };
-    previewImg.src = existingFileDataUrl;
+    previewImg.src = bgFormExistingFileDataUrl;
     previewWrap.hidden = false;
     syncModalPreviewAdjust();
     refreshAdjustVisibility();
-    fileHint.textContent = 'Зараз використовується зображення з файлу';
+    if (fileHint) fileHint.textContent = 'Зараз використовується зображення з файлу';
   } else if (initialImageUrl) {
     previewImg.onload = () => {
       syncModalPreviewAdjust();
@@ -778,69 +758,206 @@ function openBackgroundModal() {
     syncModalPreviewAdjust();
     refreshAdjustVisibility();
   } else {
+    hidePreview();
     refreshAdjustVisibility();
   }
+}
 
-  darkBrightRange.addEventListener('input', () => {
+function hideBackgroundSettingsPage() {
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  const bgp = document.getElementById('bg-settings-page');
+  const sp = document.getElementById('settings-page');
+  const sv = document.getElementById('schedule-view');
+  if (bgp) bgp.hidden = true;
+  if (sp) sp.hidden = false;
+  if (sv) sv.hidden = true;
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  syncReminderTrigger();
+  syncUserNavDockActive();
+}
+
+function showBackgroundSettingsPage() {
+  if (adminMode) return;
+  closeModals();
+  closeReminderPopover();
+  const sv = document.getElementById('schedule-view');
+  const wp = document.getElementById('weather-page');
+  const bp = document.getElementById('birthdays-page');
+  const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
+  if (!sv || !sp || !bgp) return;
+  if (wp) wp.hidden = true;
+  if (bp) bp.hidden = true;
+  if (ip) ip.hidden = true;
+  if (sip) sip.hidden = true;
+  sp.hidden = true;
+  sv.hidden = true;
+  bgp.hidden = false;
+  refreshBackgroundFormFromStorage();
+  initBackgroundSettingsPageListeners();
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+  syncReminderTrigger();
+  syncUserNavDockActive();
+}
+
+let backgroundSettingsPageListenersBound = false;
+
+function initBackgroundSettingsPageListeners() {
+  if (backgroundSettingsPageListenersBound) return;
+  backgroundSettingsPageListenersBound = true;
+
+  const colorInput = () => document.getElementById('modal-bg-color');
+  const hexInput = () => document.getElementById('modal-bg-color-hex');
+  const imageInput = () => document.getElementById('modal-bg-image');
+  const fileInput = () => document.getElementById('modal-bg-file');
+  const fileTrigger = () => document.getElementById('modal-bg-file-trigger');
+  const fileHint = () => document.getElementById('modal-bg-file-hint');
+  const previewWrap = () => document.getElementById('modal-bg-preview-wrap');
+  const previewImg = () => document.getElementById('modal-bg-preview-img');
+  const previewShade = () => document.getElementById('modal-bg-preview-shade');
+  const adjustWrap = () => document.getElementById('modal-bg-adjust');
+  const darkBrightRange = () => document.getElementById('modal-bg-dark-bright');
+  const blurSharpRange = () => document.getElementById('modal-bg-blur-sharp');
+  const darkBrightValEl = () => document.getElementById('modal-bg-dark-bright-val');
+  const blurSharpValEl = () => document.getElementById('modal-bg-blur-sharp-val');
+  const errorEl = () => document.getElementById('modal-bg-error');
+
+  const syncModalPreviewAdjust = () => {
+    const dr = darkBrightRange();
+    const brg = blurSharpRange();
+    const pw = previewWrap();
+    const pi = previewImg();
+    const ps = previewShade();
+    const dve = darkBrightValEl();
+    const bve = blurSharpValEl();
+    if (!dr || !brg || !pw || !pi) return;
+    const u = readUnifiedDarkBrightSlider(dr);
+    const { darken: d, brightness: br } = darkBrightFromUnifiedSlider(u);
+    const bs = readBlurSharpSlider(brg);
+    if (dve) dve.textContent = formatDarkBrightLabel(u);
+    if (bve) bve.textContent = formatBlurSharpLabel(bs);
+    if (!pw.hidden && pi.getAttribute('src')) {
+      pi.style.filter = buildBgImageFilter(br, bs);
+      if (ps) ps.style.backgroundColor = `rgba(0,0,0,${d / 100})`;
+    }
+  };
+
+  const refreshAdjustVisibility = () => {
+    const ii = imageInput();
+    const pw = previewWrap();
+    const pi = previewImg();
+    const aw = adjustWrap();
+    if (!ii || !pw || !pi || !aw) return;
+    const urlOk = /^https?:\/\//i.test(ii.value.trim());
+    const hasPreview = !pw.hidden && !!pi.getAttribute('src');
+    aw.hidden = !(urlOk || hasPreview);
+  };
+
+  const showPreview = (src) => {
+    const pw = previewWrap();
+    const pi = previewImg();
+    if (!pw || !pi) return;
+    pi.src = src;
+    pw.hidden = false;
     syncModalPreviewAdjust();
-  });
-  blurSharpRange.addEventListener('input', () => {
-    syncModalPreviewAdjust();
-  });
+    refreshAdjustVisibility();
+  };
+
+  const hidePreview = () => {
+    const pw = previewWrap();
+    const pi = previewImg();
+    const ps = previewShade();
+    if (!pw || !pi) return;
+    pw.hidden = true;
+    pi.removeAttribute('src');
+    pi.style.filter = '';
+    if (ps) ps.style.backgroundColor = 'rgba(0,0,0,0)';
+    refreshAdjustVisibility();
+  };
+
+  darkBrightRange().addEventListener('input', () => syncModalPreviewAdjust());
+  blurSharpRange().addEventListener('input', () => syncModalPreviewAdjust());
 
   const syncColorToHex = () => {
-    hexInput.value = colorInput.value;
+    const c = colorInput();
+    const h = hexInput();
+    if (c && h) h.value = c.value;
   };
   const syncHexToColor = () => {
-    const hex = hexInput.value.trim();
-    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) colorInput.value = hex;
+    const c = colorInput();
+    const h = hexInput();
+    if (!c || !h) return;
+    const hex = h.value.trim();
+    if (/^#[0-9A-Fa-f]{6}$/.test(hex)) c.value = hex;
   };
-  colorInput.addEventListener('input', syncColorToHex);
-  hexInput.addEventListener('input', syncHexToColor);
-  hexInput.addEventListener('blur', syncHexToColor);
+  colorInput().addEventListener('input', syncColorToHex);
+  hexInput().addEventListener('input', syncHexToColor);
+  hexInput().addEventListener('blur', syncHexToColor);
 
-  fileTrigger.addEventListener('click', () => fileInput.click());
+  fileTrigger().addEventListener('click', () => fileInput()?.click());
 
-  fileInput.addEventListener('change', async () => {
-    const f = fileInput.files?.[0];
-    fileInput.value = '';
+  fileInput().addEventListener('change', async () => {
+    const fi = fileInput();
+    const fh = fileHint();
+    const er = errorEl();
+    const ii = imageInput();
+    if (!fi) return;
+    const f = fi.files?.[0];
+    fi.value = '';
     if (!f) return;
-    errorEl.style.display = 'none';
-    fileHint.textContent = 'Обробка…';
+    if (er) {
+      er.style.display = 'none';
+    }
+    if (fh) fh.textContent = 'Обробка…';
     try {
-      newFileDataUrl = await imageFileToStoredDataUrl(f);
-      stripExistingFileBg = false;
-      imageInput.value = '';
-      showPreview(newFileDataUrl);
-      fileHint.textContent = f.name ? `Обрано: ${f.name}` : 'Файл обрано';
+      bgFormNewFileDataUrl = await imageFileToStoredDataUrl(f);
+      bgFormStripExistingFileBg = false;
+      if (ii) ii.value = '';
+      showPreview(bgFormNewFileDataUrl);
+      if (fh) fh.textContent = f.name ? `Обрано: ${f.name}` : 'Файл обрано';
       refreshAdjustVisibility();
     } catch (err) {
-      newFileDataUrl = null;
-      fileHint.textContent = '';
-      errorEl.textContent = err.message || 'Не вдалося обробити файл';
-      errorEl.style.display = 'block';
+      bgFormNewFileDataUrl = null;
+      if (fh) fh.textContent = '';
+      if (er) {
+        er.textContent = err.message || 'Не вдалося обробити файл';
+        er.style.display = 'block';
+      }
       refreshAdjustVisibility();
     }
   });
 
-  imageInput.addEventListener('input', () => {
-    const v = imageInput.value.trim();
+  imageInput().addEventListener('input', () => {
+    const ii = imageInput();
+    const fh = fileHint();
+    if (!ii) return;
+    const v = ii.value.trim();
     if (v) {
-      newFileDataUrl = null;
-      stripExistingFileBg = true;
-      fileHint.textContent = '';
+      bgFormNewFileDataUrl = null;
+      bgFormStripExistingFileBg = true;
+      if (fh) fh.textContent = '';
       if (/^https?:\/\//i.test(v)) {
-        previewImg.onload = () => {
-          syncModalPreviewAdjust();
-          refreshAdjustVisibility();
-        };
-        previewImg.onerror = () => {
-          hidePreview();
-          refreshAdjustVisibility();
-          syncModalPreviewAdjust();
-        };
-        previewImg.src = v;
-        previewWrap.hidden = false;
+        const pi = previewImg();
+        const pw = previewWrap();
+        if (pi && pw) {
+          pi.onload = () => {
+            syncModalPreviewAdjust();
+            refreshAdjustVisibility();
+          };
+          pi.onerror = () => {
+            hidePreview();
+            refreshAdjustVisibility();
+            syncModalPreviewAdjust();
+          };
+          pi.src = v;
+          pw.hidden = false;
+        }
       } else {
         hidePreview();
       }
@@ -851,87 +968,100 @@ function openBackgroundModal() {
     syncModalPreviewAdjust();
   });
 
-  removeFileBtn.addEventListener('click', () => {
-    newFileDataUrl = null;
-    stripExistingFileBg = true;
+  document.getElementById('modal-bg-remove-file').addEventListener('click', () => {
+    bgFormNewFileDataUrl = null;
+    bgFormStripExistingFileBg = true;
     hidePreview();
-    fileHint.textContent = '';
+    const fh = fileHint();
+    if (fh) fh.textContent = '';
     refreshAdjustVisibility();
   });
 
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay || e.target.dataset.action === 'cancel') closeModals();
+  document.getElementById('bg-settings-page').addEventListener('click', (e) => {
     const action = e.target.closest('[data-action]')?.dataset.action;
     if (action === 'reset-bg') {
-      try { localStorage.removeItem(BG_STORAGE_KEY); } catch (_) {}
+      try {
+        localStorage.removeItem(BG_STORAGE_KEY);
+      } catch (_) {}
       applyBackground(null);
-      closeModals();
+      hideBackgroundSettingsPage();
       showToast('Фон скинуто');
       return;
     }
     if (action === 'save-bg') {
-      errorEl.style.display = 'none';
-      const imageUrl = imageInput.value.trim();
-      const colorHex = hexInput.value.trim() || colorInput.value;
+      const er = errorEl();
+      const ii = imageInput();
+      const c = colorInput();
+      const h = hexInput();
+      const dr = darkBrightRange();
+      const brg = blurSharpRange();
+      if (er) er.style.display = 'none';
+      const imageUrl = ii ? ii.value.trim() : '';
+      const colorHex = (h && h.value.trim()) || (c ? c.value : '');
 
       const saveImage = (value) => {
-        const u = readUnifiedDarkBrightSlider(darkBrightRange);
+        const u = readUnifiedDarkBrightSlider(dr);
         const { darken, brightness } = darkBrightFromUnifiedSlider(u);
-        const blurSharp = readBlurSharpSlider(blurSharpRange);
+        const blurSharp = readBlurSharpSlider(brg);
         const payload = { type: 'image', value, darken, brightness, blurSharp };
         try {
           localStorage.setItem(BG_STORAGE_KEY, JSON.stringify(payload));
           applyBackground(payload);
-          closeModals();
+          hideBackgroundSettingsPage();
           showToast('Фон застосовано');
         } catch (err) {
-          if (err?.name === 'QuotaExceededError') {
-            errorEl.textContent = 'Недостатньо місця в браузері. Спробуйте менше зображення або посилання.';
-          } else {
-            errorEl.textContent = 'Не вдалося зберегти фон';
+          if (er) {
+            if (err?.name === 'QuotaExceededError') {
+              er.textContent = 'Недостатньо місця в браузері. Спробуйте менше зображення або посилання.';
+            } else {
+              er.textContent = 'Не вдалося зберегти фон';
+            }
+            er.style.display = 'block';
           }
-          errorEl.style.display = 'block';
         }
       };
 
-      if (newFileDataUrl) {
-        saveImage(newFileDataUrl);
+      if (bgFormNewFileDataUrl) {
+        saveImage(bgFormNewFileDataUrl);
         return;
       }
       if (imageUrl) {
         if (!/^https?:\/\//i.test(imageUrl)) {
-          errorEl.textContent = 'Введіть коректне посилання (https://…)';
-          errorEl.style.display = 'block';
+          if (er) {
+            er.textContent = 'Введіть коректне посилання (https://…)';
+            er.style.display = 'block';
+          }
           return;
         }
         saveImage(imageUrl);
         return;
       }
-      if (existingFileDataUrl && !stripExistingFileBg) {
-        saveImage(existingFileDataUrl);
+      if (bgFormExistingFileDataUrl && !bgFormStripExistingFileBg) {
+        saveImage(bgFormExistingFileDataUrl);
         return;
       }
       if (colorHex && /^#[0-9A-Fa-f]{6}$/.test(colorHex)) {
         try {
           localStorage.setItem(BG_STORAGE_KEY, JSON.stringify({ type: 'color', value: colorHex }));
           applyBackground({ type: 'color', value: colorHex });
-          closeModals();
+          hideBackgroundSettingsPage();
           showToast('Фон застосовано');
         } catch (_) {
-          errorEl.style.display = 'block';
+          if (er) er.style.display = 'block';
         }
         return;
       }
       try {
-        const hex = colorInput.value;
+        const hex = c ? c.value : '';
         localStorage.setItem(BG_STORAGE_KEY, JSON.stringify({ type: 'color', value: hex }));
         applyBackground({ type: 'color', value: hex });
-        closeModals();
+        hideBackgroundSettingsPage();
         showToast('Фон застосовано');
       } catch (_) {
-        errorEl.textContent =
-          'Оберіть колір, файл зображення або посилання https://…';
-        errorEl.style.display = 'block';
+        if (er) {
+          er.textContent = 'Оберіть колір, файл зображення або посилання https://…';
+          er.style.display = 'block';
+        }
       }
     }
   });
@@ -1229,6 +1359,8 @@ let reminderText = '';
 let reminderUpdatedAt = 0;
 /** Історія версій нагадування (лише адмін, з GET /api/admin/reminder) */
 let reminderHistory = [];
+/** Історія для сторінки «Важливо» студента (з GET /api/reminder) */
+let reminderPublicHistory = [];
 /** Після першого запиту /api/reminder (щоб у звичайному режимі не миготіла кнопка до відповіді) */
 let reminderFetchSettled = false;
 
@@ -1256,6 +1388,7 @@ function markReminderSeen() {
   try {
     localStorage.setItem(REMINDER_SEEN_KEY, String(reminderUpdatedAt));
   } catch (_) {}
+  syncUnreadDot();
 }
 
 /** Кожен рядок тексту — окремий абзац (новий рядок у редакторі = новий блок) */
@@ -1281,6 +1414,112 @@ function isReminderUnreadForUser() {
   if (!isPublicReminderActive()) return false;
   if (!reminderUpdatedAt) return false;
   return reminderUpdatedAt > getReminderSeenTs();
+}
+
+/** Маленький червоний кружок у правому верхньому куті — є непрочитане важливе */
+function syncUnreadDot() {
+  const dot = document.getElementById('reminder-unread-dot');
+  if (!dot) return;
+  if (adminMode) {
+    dot.hidden = true;
+    dot.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  if (!reminderFetchSettled) {
+    dot.hidden = true;
+    dot.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  const show = isReminderUnreadForUser();
+  dot.hidden = !show;
+  dot.setAttribute('aria-hidden', show ? 'false' : 'true');
+}
+
+function isStudentImportantPageVisible() {
+  const p = document.getElementById('student-important-page');
+  return Boolean(p && !p.hidden);
+}
+
+function renderStudentImportantPage() {
+  const wrap = document.getElementById('student-important-current-wrap');
+  const listEl = document.getElementById('student-important-history-list');
+  const historyBlock = document.getElementById('student-important-history-block');
+  if (!wrap || !listEl) return;
+
+  const hasActive = !!(reminderText && reminderText.trim()) && isPublicReminderActive();
+  if (hasActive) {
+    const untilTs = reminderUpdatedAt + REMINDER_PUBLIC_TTL_MS;
+    const until =
+      reminderUpdatedAt > 0
+        ? new Date(untilTs).toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
+        : '—';
+    wrap.innerHTML = `<div class="student-important-current student-important-current--active">
+      <p class="student-important-page__status">Активне для перегляду на головному екрані до ${escapeHtml(until)}</p>
+      <div class="student-important-page__body" id="student-important-current-body"></div>
+    </div>`;
+    fillReminderReadonlyBody(document.getElementById('student-important-current-body'), reminderText);
+  } else {
+    wrap.innerHTML = `<div class="student-important-current student-important-current--empty">
+      <p class="student-important-page__empty">Немає активного важливого оголошення зараз (або минув 24-годинний термін показу).</p>
+    </div>`;
+  }
+
+  const hist = Array.isArray(reminderPublicHistory) ? reminderPublicHistory : [];
+  if (!hist.length) {
+    listEl.innerHTML = '';
+    if (historyBlock) {
+      historyBlock.hidden = true;
+      historyBlock.setAttribute('aria-hidden', 'true');
+    }
+    return;
+  }
+  if (historyBlock) {
+    historyBlock.hidden = false;
+    historyBlock.setAttribute('aria-hidden', 'false');
+  }
+  listEl.innerHTML = hist
+    .map((h) => {
+      const d = h.updatedAt ? new Date(h.updatedAt) : null;
+      const dateStr =
+        d && !Number.isNaN(d.getTime())
+          ? d.toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
+          : '—';
+      const body = String(h.text || '').trim() || '—';
+      return `<article class="important-history-card"><p class="important-history-card__meta">${escapeHtml(dateStr)}</p><p class="important-history-card__text">${escapeHtml(body).replace(/\n/g, '<br>')}</p></article>`;
+    })
+    .join('');
+}
+
+async function showStudentImportantPage() {
+  if (adminMode) return;
+  closeReminderPopover();
+  document.getElementById('schedule-modal-overlay')?.remove();
+  await fetchReminderFromServer();
+  const sv = document.getElementById('schedule-view');
+  const wp = document.getElementById('weather-page');
+  const bp = document.getElementById('birthdays-page');
+  const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
+  if (!sv || !sip) return;
+  if (wp) wp.hidden = true;
+  if (bp) bp.hidden = true;
+  if (ip) ip.hidden = true;
+  if (sp) sp.hidden = true;
+  if (bgp) bgp.hidden = true;
+  sv.hidden = true;
+  sip.hidden = false;
+  renderStudentImportantPage();
+  markReminderSeen();
+  syncReminderTrigger();
+  syncUnreadDot();
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+  syncUserNavDockActive();
 }
 
 /** Захист від випадкових подвійних натискань у режимі адміна (мс) */
@@ -1575,6 +1814,100 @@ function isImportantPageVisible() {
   return Boolean(p && !p.hidden);
 }
 
+function isSettingsPageVisible() {
+  const p = document.getElementById('settings-page');
+  return Boolean(p && !p.hidden);
+}
+
+/** Закрити всі підсторінки користувача й показати розклад */
+function navigateUserToSchedule() {
+  closeReminderPopover();
+  document.getElementById('schedule-modal-overlay')?.remove();
+  const wp = document.getElementById('weather-page');
+  const bp = document.getElementById('birthdays-page');
+  const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
+  const sv = document.getElementById('schedule-view');
+  if (wp) wp.hidden = true;
+  if (bp) bp.hidden = true;
+  if (ip) ip.hidden = true;
+  if (sp) sp.hidden = true;
+  if (bgp) bgp.hidden = true;
+  if (sip) sip.hidden = true;
+  if (sv) sv.hidden = false;
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  syncReminderTrigger();
+  syncUserNavDockActive();
+}
+
+function showSettingsPage() {
+  if (adminMode) return;
+  closeReminderPopover();
+  document.getElementById('schedule-modal-overlay')?.remove();
+  const sv = document.getElementById('schedule-view');
+  const wp = document.getElementById('weather-page');
+  const bp = document.getElementById('birthdays-page');
+  const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
+  if (!sv || !sp) return;
+  if (wp) wp.hidden = true;
+  if (bp) bp.hidden = true;
+  if (ip) ip.hidden = true;
+  if (bgp) bgp.hidden = true;
+  if (sip) sip.hidden = true;
+  sv.hidden = true;
+  sp.hidden = false;
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+  syncReminderTrigger();
+  syncUserNavDockActive();
+}
+
+function hideSettingsPage() {
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  const sv = document.getElementById('schedule-view');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
+  if (bgp) bgp.hidden = true;
+  if (sip) sip.hidden = true;
+  if (sv) sv.hidden = false;
+  if (sp) sp.hidden = true;
+  syncReminderTrigger();
+  syncUserNavDockActive();
+}
+
+function syncUserNavDockActive() {
+  if (adminMode) return;
+  const dock = document.getElementById('user-nav-dock');
+  if (!dock) return;
+  dock.querySelectorAll('.user-nav-dock__btn[data-user-nav]').forEach((b) => b.classList.remove('user-nav-dock__btn--active'));
+  /** @type {string | null} */
+  let key = 'schedule';
+  if (isWeatherPageVisible()) key = 'weather';
+  else if (isSettingsPageVisible() || isBgSettingsPageVisible()) key = 'settings';
+  else if (isStudentImportantPageVisible()) key = 'important';
+  else if (isBirthdaysPageVisible()) key = null;
+  else if (isScheduleViewVisible()) key = 'schedule';
+  else key = null;
+  if (key) {
+    const active = dock.querySelector(`[data-user-nav="${key}"]`);
+    if (active) active.classList.add('user-nav-dock__btn--active');
+  }
+}
+
+function openUserImportant() {
+  if (adminMode) return;
+  showStudentImportantPage();
+}
+
 function syncAdminDockActive() {
   if (!adminMode) return;
   const dock = document.getElementById('admin-nav-dock');
@@ -1594,14 +1927,21 @@ function navigateAdminToSchedule() {
   const wp = document.getElementById('weather-page');
   const bp = document.getElementById('birthdays-page');
   const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
   const sv = document.getElementById('schedule-view');
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
   if (ip) ip.hidden = true;
+  if (sp) sp.hidden = true;
+  if (bgp) bgp.hidden = true;
+  if (sip) sip.hidden = true;
   if (sv) sv.hidden = false;
   window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
   syncReminderTrigger();
   syncAdminDockActive();
+  syncUserNavDockActive();
   try {
     window.scrollTo(0, 0);
   } catch (_) {}
@@ -1676,7 +2016,13 @@ function showImportantPage() {
   const wp = document.getElementById('weather-page');
   const bp = document.getElementById('birthdays-page');
   const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
   if (!sv || !ip) return;
+  if (sp) sp.hidden = true;
+  if (bgp) bgp.hidden = true;
+  if (sip) sip.hidden = true;
   if (isWeatherPageVisible()) {
     if (wp) wp.hidden = true;
     window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
@@ -1694,6 +2040,7 @@ function showImportantPage() {
   if (ta) ta.value = '';
   fetchAdminReminderFull();
   syncAdminDockActive();
+  syncUserNavDockActive();
 }
 
 function scheduleSubpageEscapeHandler(e) {
@@ -1708,12 +2055,31 @@ function scheduleSubpageEscapeHandler(e) {
     hideWeatherPage();
     return;
   }
+  if (isBgSettingsPageVisible()) {
+    if (!adminMode) hideBackgroundSettingsPage();
+    e.preventDefault();
+    return;
+  }
+  if (isStudentImportantPageVisible()) {
+    navigateUserToSchedule();
+    e.preventDefault();
+    return;
+  }
+  if (isSettingsPageVisible()) {
+    if (!adminMode) hideSettingsPage();
+    e.preventDefault();
+    return;
+  }
   if (isImportantPageVisible()) {
     navigateAdminToSchedule();
     e.preventDefault();
     return;
   }
-  if (isBirthdaysPageVisible()) hideBirthdaysPage();
+  if (isBirthdaysPageVisible()) {
+    navigateBackFromBirthdaysPage();
+    e.preventDefault();
+    return;
+  }
 }
 
 /** Київ — Open-Meteo WMO weathercode → короткий опис українською */
@@ -2072,6 +2438,7 @@ async function loadWeatherForecast() {
     const placeLabel = weatherPlaceTitleShort(loc.label) || loc.label;
 
     body.innerHTML = '';
+    weatherCardEnterIndex = 0;
     times.forEach((dayStr, i) => {
       const dateLine = formatDayHeaderUk(dayStr, tz);
       const code = codes[i];
@@ -2120,6 +2487,7 @@ async function loadWeatherForecast() {
         </div>
         ${nowBlock}
       `;
+      stampWeatherCardEnter(card);
       body.appendChild(card);
     });
   } catch (_) {
@@ -2306,6 +2674,7 @@ function hideWeatherPage() {
   if (wp) wp.hidden = true;
   syncReminderTrigger();
   syncAdminDockActive();
+  syncUserNavDockActive();
 }
 
 async function showWeatherPage() {
@@ -2315,7 +2684,13 @@ async function showWeatherPage() {
   closeReminderPopover();
   document.getElementById('schedule-modal-overlay')?.remove();
   const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
   if (ip) ip.hidden = true;
+  if (sp) sp.hidden = true;
+  if (bgp) bgp.hidden = true;
+  if (sip) sip.hidden = true;
   if (isBirthdaysPageVisible()) hideBirthdaysPage();
   sv.hidden = true;
   wp.hidden = false;
@@ -2327,6 +2702,7 @@ async function showWeatherPage() {
   } catch (_) {}
   await loadWeatherForecast();
   syncAdminDockActive();
+  syncUserNavDockActive();
 }
 
 function showBirthdaysPage() {
@@ -2337,7 +2713,13 @@ function showBirthdaysPage() {
   const overlay = document.getElementById('schedule-modal-overlay');
   if (overlay) overlay.remove();
   const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
   if (ip) ip.hidden = true;
+  if (sp) sp.hidden = true;
+  if (bgp) bgp.hidden = true;
+  if (sip) sip.hidden = true;
   /* Не викликати hideWeatherPage() — він тимчасово показує schedule-view; лише ховаємо погоду */
   if (isWeatherPageVisible()) {
     const wp = document.getElementById('weather-page');
@@ -2355,7 +2737,12 @@ function showBirthdaysPage() {
   try {
     window.scrollTo(0, 0);
   } catch (_) {}
+  const backBtn = document.getElementById('birthdays-back-btn');
+  if (backBtn) {
+    backBtn.setAttribute('aria-label', adminMode ? 'Назад до розкладу' : 'Назад до налаштувань');
+  }
   syncAdminDockActive();
+  syncUserNavDockActive();
 }
 
 function hideBirthdaysPage() {
@@ -2367,6 +2754,17 @@ function hideBirthdaysPage() {
   updateBirthdayHomeNotice();
   syncReminderTrigger();
   syncAdminDockActive();
+  syncUserNavDockActive();
+}
+
+/** Звичайний режим: назад → налаштування; режим редагування: назад → розклад */
+function navigateBackFromBirthdaysPage() {
+  if (adminMode) {
+    hideBirthdaysPage();
+    return;
+  }
+  showSettingsPage();
+  updateBirthdayHomeNotice();
 }
 
 function closeModals() {
@@ -2466,6 +2864,7 @@ async function fetchReminderFromServer() {
       if (typeof data.text === 'string') reminderText = data.text;
       const ts = Number(data.updatedAt);
       reminderUpdatedAt = Number.isFinite(ts) && ts > 0 ? ts : 0;
+      reminderPublicHistory = Array.isArray(data.history) ? data.history : [];
     }
   } catch (_) {}
   reminderFetchSettled = true;
@@ -2474,38 +2873,31 @@ async function fetchReminderFromServer() {
 
 function syncReminderTrigger() {
   const btn = document.getElementById('reminder-trigger');
-  if (!btn) return;
-  const hasText = !!(reminderText && reminderText.trim()) && isPublicReminderActive();
-  btn.classList.remove('reminder-trigger--unread');
+  if (btn) {
+    const hasText = !!(reminderText && reminderText.trim()) && isPublicReminderActive();
+    btn.classList.remove('reminder-trigger--unread');
 
-  /* Кнопка «Важливо» лише на панелі розкладу */
-  if (!isScheduleViewVisible()) {
-    btn.hidden = true;
-    btn.setAttribute('aria-hidden', 'true');
-    return;
+    /* Кнопка «!» лише на панелі розкладу (швидкий доступ; повний перегляд — вкладка «Важливо») */
+    if (!isScheduleViewVisible()) {
+      btn.hidden = true;
+      btn.setAttribute('aria-hidden', 'true');
+    } else if (adminMode) {
+      btn.hidden = true;
+      btn.setAttribute('aria-hidden', 'true');
+    } else if (!reminderFetchSettled) {
+      btn.hidden = true;
+      btn.setAttribute('aria-hidden', 'true');
+    } else {
+      btn.hidden = !hasText;
+      if (btn.hidden) btn.setAttribute('aria-hidden', 'true');
+      else btn.removeAttribute('aria-hidden');
+      btn.setAttribute('aria-label', 'Важливе нагадування');
+      if (!btn.hidden && isReminderUnreadForUser()) {
+        btn.classList.add('reminder-trigger--unread');
+      }
+    }
   }
-
-  /* У режимі адміністратора кнопка не потрібна — редагування через нижню панель */
-  if (adminMode) {
-    btn.hidden = true;
-    btn.setAttribute('aria-hidden', 'true');
-    return;
-  }
-
-  /* Звичайний режим: кнопка лише після відповіді сервера і лише якщо є текст */
-  if (!reminderFetchSettled) {
-    btn.hidden = true;
-    btn.setAttribute('aria-hidden', 'true');
-    return;
-  }
-
-  btn.hidden = !hasText;
-  if (btn.hidden) btn.setAttribute('aria-hidden', 'true');
-  else btn.removeAttribute('aria-hidden');
-  btn.setAttribute('aria-label', 'Важливе нагадування');
-  if (!btn.hidden && isReminderUnreadForUser()) {
-    btn.classList.add('reminder-trigger--unread');
-  }
+  syncUnreadDot();
 }
 
 function openReminderPopover() {
@@ -2697,13 +3089,16 @@ function syncAdminChrome() {
   document.body.classList.toggle('admin-mode', adminMode);
   const banner = document.getElementById('admin-mode-banner');
   const dock = document.getElementById('admin-nav-dock');
+  const userDock = document.getElementById('user-nav-dock');
   if (banner) banner.hidden = !adminMode;
   if (dock) dock.hidden = !adminMode;
+  if (userDock) userDock.hidden = adminMode;
   const bap = document.getElementById('birthdays-admin-panel');
   if (bap) bap.hidden = !adminMode;
   if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
   syncReminderTrigger();
   syncAdminDockActive();
+  syncUserNavDockActive();
 }
 
 function exitAdminMode() {
@@ -2856,6 +3251,7 @@ function openPasswordModal(lessonOrNull, options = {}) {
           adminMode = true;
           lastAdminUiTapAt = 0;
           closeAllLessonSwipes();
+          navigateUserToSchedule();
           syncAdminChrome();
           fetchReminderFromServer();
           if (currentScheduleDate) loadSchedule(currentScheduleDate);
@@ -3228,17 +3624,19 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-document.getElementById('bg-btn').addEventListener('click', () => openBackgroundModal());
+document.getElementById('settings-open-bg')?.addEventListener('click', () => showBackgroundSettingsPage());
 
-const birthdaysBtn = document.getElementById('birthdays-btn');
-if (birthdaysBtn) {
-  birthdaysBtn.addEventListener('click', () => openBirthdaysPageWithLoad());
-}
+document.getElementById('bg-settings-back-btn')?.addEventListener('click', () => hideBackgroundSettingsPage());
 
-document.getElementById('birthdays-back-btn')?.addEventListener('click', () => hideBirthdaysPage());
+document.getElementById('settings-open-birthdays')?.addEventListener('click', () => openBirthdaysPageWithLoad());
 
-document.getElementById('header-weather-btn')?.addEventListener('click', () => showWeatherPage());
-document.getElementById('weather-back-btn')?.addEventListener('click', () => hideWeatherPage());
+document.getElementById('birthdays-back-btn')?.addEventListener('click', () => navigateBackFromBirthdaysPage());
+
+document.getElementById('user-nav-important')?.addEventListener('click', () => openUserImportant());
+document.getElementById('user-nav-schedule')?.addEventListener('click', () => navigateUserToSchedule());
+document.getElementById('user-nav-weather')?.addEventListener('click', () => showWeatherPage());
+document.getElementById('user-nav-settings')?.addEventListener('click', () => showSettingsPage());
+
 initWeatherPageControls();
 
 document.getElementById('birthdays-admin-add')?.addEventListener('click', () => birthdaysAdminSubmitAdd());
@@ -3350,7 +3748,7 @@ if (reminderTrigger) {
     e.stopPropagation();
     if (adminMode) return;
     if (!reminderText || !reminderText.trim() || !isPublicReminderActive()) return;
-    openReminderPopover();
+    showStudentImportantPage();
   });
 }
 
