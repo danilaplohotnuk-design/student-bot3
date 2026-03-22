@@ -149,8 +149,12 @@
 
     <section id="weather-page" class="weather-page" hidden aria-label="Погода">
       <header class="weather-page__header">
-        <h1 id="weather-page-title" class="weather-page__title">Погода</h1>
-        <p id="weather-page-subtitle" class="weather-page__subtitle">Прогноз на 7 днів</p>
+        <div class="app-header-block">
+          <div class="app-header-block__text">
+            <h1 id="weather-page-title" class="app-title">Погода</h1>
+            <p id="weather-page-subtitle" class="app-subtitle weather-page__subtitle">Прогноз на 7 днів</p>
+          </div>
+        </div>
       </header>
       <div class="weather-page__toolbar">
         <div class="weather-page__search">
@@ -204,7 +208,11 @@
 
     <section id="settings-page" class="settings-page" hidden aria-label="Налаштування">
       <header class="settings-page__header">
-        <h1 class="settings-page__title">Налаштування</h1>
+        <div class="app-header-block">
+          <div class="app-header-block__text">
+            <h1 class="app-title">Налаштування</h1>
+          </div>
+        </div>
       </header>
       <div class="settings-page__tiles">
         <button type="button" id="settings-open-bg" class="settings-page__tile" aria-label="Фон застосунку">
@@ -283,7 +291,11 @@
 
     <section id="student-important-page" class="student-important-page" hidden aria-label="Важливо для студентів">
       <header class="student-important-page__header">
-        <h1 class="student-important-page__title">Важливо</h1>
+        <div class="app-header-block">
+          <div class="app-header-block__text">
+            <h1 class="app-title">Важливо</h1>
+          </div>
+        </div>
       </header>
       <div id="student-important-current-wrap" class="student-important-page__current-wrap"></div>
       <section
@@ -299,10 +311,14 @@
 
     <section id="important-page" class="important-page" hidden aria-label="Важливе повідомлення для студентів">
       <header class="important-page__header">
-        <h1 class="important-page__title">Важливо</h1>
-        <p class="important-page__lede">
-          Для студентів повідомлення показується на головному екрані (кнопка «!») протягом 24 годин після збереження, якщо не опубліковано нове. Нижче — історія версій.
-        </p>
+        <div class="app-header-block">
+          <div class="app-header-block__text">
+            <h1 class="app-title">Важливо</h1>
+            <p class="important-page__lede">
+              Для студентів повідомлення показується на головному екрані (кнопка «!») протягом 24 годин після збереження, якщо не опубліковано нове. Нижче — історія версій.
+            </p>
+          </div>
+        </div>
       </header>
       <div id="important-current-display" class="important-page__current" aria-live="polite"></div>
       <div class="important-page__editor">

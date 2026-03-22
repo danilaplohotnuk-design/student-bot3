@@ -451,14 +451,6 @@ body[data-bg-mode='light'] .user-nav-dock {
   flex-shrink: 0;
 }
 
-.settings-page__title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-
 .settings-page__tiles {
   display: flex;
   flex-direction: column;
@@ -615,14 +607,6 @@ body[data-bg-mode='light'] .user-nav-dock {
   flex-shrink: 0;
 }
 
-.student-important-page__title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-
 .student-important-page__current-wrap {
   flex-shrink: 0;
 }
@@ -712,14 +696,6 @@ body[data-bg-mode='light'] .reminder-unread-dot {
 
 .important-page__header {
   flex-shrink: 0;
-}
-
-.important-page__title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.02em;
 }
 
 .important-page__lede {
@@ -1001,17 +977,11 @@ body[data-bg-mode='light'] .important-page__textarea {
   margin-bottom: 0;
 }
 
-.weather-page__title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.02em;
-}
-
+/* Підзаголовок погоди: трохи дрібніше за .app-subtitle розкладу */
 .weather-page__subtitle {
   margin: 6px 0 0;
   font-size: 0.8125rem;
+  font-weight: 500;
   color: var(--text-dim);
 }
 
