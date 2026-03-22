@@ -1884,9 +1884,9 @@ async function loadWeatherForecast() {
       } else {
         const likelyRounded = dayMostLikelyTempRounded(i);
         if (likelyRounded !== null) {
-          nowBlock = `<aside class="weather-day__now weather-day__now--forecast" aria-label="Ймовірна температура за добу">
+          nowBlock = `<aside class="weather-day__now weather-day__now--forecast" aria-label="Ймовірна температура">
             <div class="weather-now__temp">${weatherNowTempDigitsHtml(likelyRounded)}</div>
-            <div class="weather-now__desc weather-now__desc--likely">температура за добу</div>
+            <div class="weather-now__desc weather-now__desc--likely">ймовірна температура</div>
           </aside>`;
         } else {
           nowBlock =

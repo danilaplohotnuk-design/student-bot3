@@ -159,6 +159,7 @@ body {
 }
 
 /* Водяний знак «ТБА» — по центру екрана, повернутий 90° */
+/* lvh / 50lvh: не прив’язуємо до динамічного вікна (клавіатура, панель браузера), щоб не «з’їжджало» на мобільних */
 .app-tba-watermark {
   display: none;
   box-sizing: border-box;
@@ -205,11 +206,12 @@ body:not([data-bg-kind="image"]) .app-tba-watermark {
   display: block;
 }
 
-@supports (height: 100dvh) {
+@supports (height: 100lvh) {
   .app-tba-watermark {
+    top: 50lvh;
     font-size: clamp(
       8.5rem,
-      calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 2.1),
+      calc((100lvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / 2.1),
       56rem
     );
   }
@@ -757,6 +759,7 @@ body[data-bg-mode='light'] .weather-search-card:hover {
   /* flex-start + gap: лінія між колонками залежить від gap, а не «прилипає» до правого краю */
   justify-content: flex-start;
   gap: 14px;
+  min-width: 0;
   padding: 14px 16px;
   border-radius: var(--radius);
   background: var(--bg-card);
@@ -885,46 +888,7 @@ body[data-bg-mode='light'] .weather-search-card:hover {
   opacity: 0.45;
 }
 
-@media (max-width: 420px) {
-  .weather-day {
-    flex-wrap: wrap;
-  }
-
-  .weather-day__now {
-    margin-left: 0;
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-    aspect-ratio: auto;
-    min-height: auto;
-    text-align: center;
-    align-items: center;
-    padding: 10px 12px 0;
-    margin-top: 4px;
-    border-left: none;
-    border-top: 1px solid var(--border);
-  }
-
-  .weather-day__now--empty {
-    justify-content: center;
-    min-height: 3.5rem;
-    aspect-ratio: auto;
-  }
-
-  .weather-day__now .weather-now__temp {
-    font-size: clamp(2.85rem, 1.45rem + 8vmin, 4.65rem);
-    line-height: 1;
-  }
-
-  .weather-day__now .weather-now__num {
-    letter-spacing: -0.045em;
-  }
-
-  .weather-day__now .weather-now__desc {
-    margin-top: 6px;
-    font-size: clamp(0.6875rem, 0.6rem + 0.35vw, 0.8125rem);
-  }
-}
+/* Мобільний Telegram і вузькі вікна: той самий макет, що й на десктопі — текст зліва, квадрат з градусами справа з вертикальним розділювачем */
 
 .weather-day__date {
   font-size: 0.9375rem;
