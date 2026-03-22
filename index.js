@@ -14,6 +14,12 @@ import {
   appendJournalRow,
   getJournalFileBuffer,
   ATTENDANCE_JOURNAL_FILENAME,
+  normalizeDateToIso,
+  formatPairLabel,
+  getRowsForIsoDate,
+  getNamesForPair,
+  getUnpairedNames,
+  upsertAttendanceByPair,
 } from './attendance-journal.js';
 
 dotenv.config();
@@ -410,11 +416,67 @@ app.get('/api/admin/attendance/download', requireAdmin, (req, res) => {
     const buf = getJournalFileBuffer();
     const encoded = encodeURIComponent(ATTENDANCE_JOURNAL_FILENAME);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encoded}`);
+    res.setHeader('Content-Disposition', `attachment; filename="TBA-35-test.xlsx"; filename*=UTF-8''${encoded}`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.send(buf);
   } catch (err) {
     console.error('attendance download:', err);
     res.status(500).json({ error: 'Не вдалося віддати файл' });
+  }
+});
+
+/** Дата + пари з розкладу + рядки журналу за цей день (для розумного пошуку) */
+app.get('/api/admin/attendance/day', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const raw = req.query.date;
+    const iso = normalizeDateToIso(raw) || (typeof raw === 'string' ? raw.trim() : '');
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+      return res.status(400).json({ error: 'Потрібна дата YYYY-MM-DD' });
+    }
+    const lessons = getScheduleByDate(iso);
+    const rowsForDay = getRowsForIsoDate(iso);
+    const unpaired = getUnpairedNames(rowsForDay);
+    const pairs = lessons.map((lesson) => {
+      const pairLabel = formatPairLabel(lesson);
+      return {
+        pairLabel,
+        startTime: lesson.startTime,
+        endTime: lesson.endTime,
+        title: lesson.title,
+        teacher: lesson.teacher || '',
+        building: lesson.building,
+        room: lesson.room,
+        names: getNamesForPair(rowsForDay, pairLabel, lesson.title),
+      };
+    });
+    res.json({
+      ok: true,
+      date: iso,
+      pairs,
+      rowsForDay,
+      unpaired,
+    });
+  } catch (err) {
+    console.error('attendance day:', err);
+    res.status(500).json({ error: 'Не вдалося зчитати журнал' });
+  }
+});
+
+/** Відмітити присутність (п/н) за датою, парою та ПІБ */
+app.post('/api/admin/attendance/set', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const data = upsertAttendanceByPair(req.body || {});
+    res.json({ ok: true, ...data });
+  } catch (err) {
+    const msg = err && err.message ? String(err.message) : String(err);
+    if (msg.includes('Потрібні') || msg.includes('Некоректна') || msg.includes('Потрібне')) {
+      return res.status(400).json({ error: msg });
+    }
+    console.error('attendance set:', err);
+    res.status(500).json({ error: 'Не вдалося зберегти' });
   }
 });
 

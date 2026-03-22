@@ -1836,6 +1836,7 @@ function isImportantPageVisible() {
 function hideAttendanceJournalPage() {
   const el = document.getElementById('attendance-journal-page');
   if (el) el.hidden = true;
+  closeAttendanceJournalPairModal();
 }
 
 function isAttendanceJournalPageVisible() {
@@ -2091,14 +2092,15 @@ function renderAttendanceJournalTable(rows) {
   }
   const last = rows.slice(-40).reverse();
   const thead =
-    '<thead><tr><th>Дата</th><th>ПІБ</th><th>Присутність</th><th>Примітка</th></tr></thead>';
+    '<thead><tr><th>Дата</th><th>Пара</th><th>ПІБ</th><th>Присутність</th><th>Примітка</th></tr></thead>';
   const tbody = last
     .map((r) => {
       const d = escapeHtml(String(r['Дата'] ?? ''));
+      const pair = escapeHtml(String(r['Пара'] ?? ''));
       const n = escapeHtml(String(r['ПІБ'] ?? ''));
       const p = escapeHtml(String(r['Присутність'] ?? ''));
       const note = escapeHtml(String(r['Примітка'] ?? ''));
-      return `<tr><td>${d}</td><td>${n}</td><td>${p}</td><td>${note}</td></tr>`;
+      return `<tr><td>${d}</td><td>${pair}</td><td>${n}</td><td>${p}</td><td>${note}</td></tr>`;
     })
     .join('');
   wrap.innerHTML = `<table class="attendance-journal-page__table" aria-label="Записи журналу">${thead}<tbody>${tbody}</tbody></table>`;
@@ -2120,6 +2122,215 @@ async function loadAttendanceJournalData() {
   } catch (_) {
     wrap.innerHTML =
       '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Не вдалося завантажити журнал.</p>';
+  }
+}
+
+/** Кеш GET /api/admin/attendance/day */
+let attendanceJournalDayCache = null;
+
+/** Контекст модалки: { dateIso, pairLabel, names, title, isUnpaired } */
+let attendanceJournalPairModalCtx = null;
+
+function closeAttendanceJournalPairModal() {
+  const ov = document.getElementById('attendance-journal-pair-overlay');
+  if (ov) {
+    ov.hidden = true;
+    ov.setAttribute('aria-hidden', 'true');
+  }
+  attendanceJournalPairModalCtx = null;
+}
+
+function renderAttendanceJournalPairsList(data) {
+  const wrap = document.getElementById('attendance-journal-pairs-wrap');
+  if (!wrap) return;
+  if (!data || !Array.isArray(data.pairs)) {
+    wrap.hidden = true;
+    return;
+  }
+  if (!data.pairs.length) {
+    wrap.innerHTML =
+      '<p class="attendance-journal-page__empty">На цю дату в розкладу немає пар.</p>';
+    wrap.hidden = false;
+    return;
+  }
+  wrap.hidden = false;
+  const parts = [];
+  data.pairs.forEach((p, i) => {
+    const n = p.names && p.names.length ? p.names.length : 0;
+    parts.push(
+      `<button type="button" class="attendance-journal-pair-chip" data-pair-index="${i}">
+        <span class="attendance-journal-pair-chip__time">${escapeHtml(p.startTime)}–${escapeHtml(
+        p.endTime,
+      )}</span>
+        ${escapeHtml(p.title)}${p.teacher ? ` (${escapeHtml(p.teacher)})` : ''}
+        <span class="attendance-journal-pair-chip--muted"> — у журналі: ${n}</span>
+      </button>`,
+    );
+  });
+  if (data.unpaired && data.unpaired.length) {
+    parts.push(
+      `<button type="button" class="attendance-journal-pair-chip" data-pair-unpaired="1">
+        <span class="attendance-journal-pair-chip__time">Без колонки «Пара»</span>
+        Записи без прив’язки до пари (${data.unpaired.length})
+      </button>`,
+    );
+  }
+  wrap.innerHTML = parts.join('');
+}
+
+function openAttendanceJournalPairModal(ctx) {
+  attendanceJournalPairModalCtx = ctx;
+  const ov = document.getElementById('attendance-journal-pair-overlay');
+  const titleEl = document.getElementById('attendance-journal-pair-dialog-title');
+  const listEl = document.getElementById('attendance-journal-pair-list');
+  const emptyEl = document.getElementById('attendance-journal-pair-empty');
+  const nameInput = document.getElementById('attendance-journal-pair-new-name');
+  if (!ov || !titleEl || !listEl || !emptyEl) return;
+  if (nameInput) nameInput.value = '';
+  titleEl.textContent = ctx.title || ctx.pairLabel || 'Пара';
+  const names = Array.isArray(ctx.names) ? ctx.names : [];
+  emptyEl.hidden = names.length > 0;
+  listEl.innerHTML = '';
+  names.forEach((entry) => {
+    const name = typeof entry === 'string' ? entry : entry.name;
+    const present = typeof entry === 'object' && entry ? !!entry.present : false;
+    const row = document.createElement('div');
+    row.className = 'attendance-journal-pair-row';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'attendance-journal-pair-row__name';
+    nameSpan.textContent = name;
+    const label = document.createElement('label');
+    label.className = 'attendance-journal-switch';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = present;
+    input.addEventListener('change', () => {
+      onAttendanceJournalToggle(name, input.checked);
+    });
+    const track = document.createElement('span');
+    track.className = 'attendance-journal-switch__track';
+    const thumb = document.createElement('span');
+    thumb.className = 'attendance-journal-switch__thumb';
+    track.appendChild(thumb);
+    label.appendChild(input);
+    label.appendChild(track);
+    row.appendChild(nameSpan);
+    row.appendChild(label);
+    listEl.appendChild(row);
+  });
+  ov.hidden = false;
+  ov.setAttribute('aria-hidden', 'false');
+}
+
+async function refreshAttendanceJournalModalAfterSave() {
+  const prev = attendanceJournalPairModalCtx;
+  if (!prev || !storedAdminPassword) return;
+  const dateIso = prev.dateIso;
+  const pairLabel = prev.pairLabel;
+  const isUnpaired = prev.isUnpaired;
+  try {
+    const res = await fetch(`/api/admin/attendance/day?date=${encodeURIComponent(dateIso)}`, {
+      headers: { 'x-admin-password': storedAdminPassword },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.ok) return;
+    attendanceJournalDayCache = data;
+    renderAttendanceJournalPairsList(data);
+    let nextNames = [];
+    let title = attendanceJournalPairModalCtx.title;
+    if (isUnpaired) {
+      nextNames = Array.isArray(data.unpaired) ? data.unpaired : [];
+      title = 'Записи без колонки «Пара»';
+    } else {
+      const match = data.pairs.find((p) => p.pairLabel === pairLabel);
+      nextNames = match && Array.isArray(match.names) ? match.names : [];
+    }
+    openAttendanceJournalPairModal({
+      dateIso,
+      pairLabel,
+      names: nextNames,
+      title,
+      isUnpaired,
+    });
+  } catch (_) {}
+}
+
+async function onAttendanceJournalToggle(fullName, present) {
+  if (!attendanceJournalPairModalCtx || !storedAdminPassword) return;
+  const { dateIso, pairLabel } = attendanceJournalPairModalCtx;
+  try {
+    const res = await fetch('/api/admin/attendance/set', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': storedAdminPassword,
+      },
+      body: JSON.stringify({
+        dateIso,
+        pairLabel: pairLabel || '',
+        fullName,
+        present,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : []);
+      await refreshAttendanceJournalModalAfterSave();
+      showToast('Збережено в Excel');
+    } else {
+      showToast(data.error || 'Не вдалося зберегти');
+    }
+  } catch (_) {
+    showToast('Помилка мережі');
+  }
+}
+
+async function loadAttendanceJournalDay() {
+  const smartEl = document.getElementById('attendance-journal-smart-date');
+  const msgEl = document.getElementById('attendance-journal-day-msg');
+  const formDate = document.getElementById('attendance-journal-date');
+  if (!smartEl || !storedAdminPassword) return;
+  const date = smartEl.value;
+  if (!date) {
+    if (msgEl) {
+      msgEl.textContent = 'Оберіть дату.';
+      msgEl.className = 'attendance-journal-page__msg attendance-journal-page__msg--err';
+      msgEl.hidden = false;
+    }
+    return;
+  }
+  if (msgEl) {
+    msgEl.hidden = true;
+    msgEl.textContent = '';
+  }
+  if (formDate) formDate.value = date;
+  try {
+    const res = await fetch(`/api/admin/attendance/day?date=${encodeURIComponent(date)}`, {
+      headers: { 'x-admin-password': storedAdminPassword },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (msgEl) {
+        msgEl.textContent = data.error || 'Не вдалося завантажити день';
+        msgEl.className = 'attendance-journal-page__msg attendance-journal-page__msg--err';
+        msgEl.hidden = false;
+      }
+      return;
+    }
+    attendanceJournalDayCache = data;
+    renderAttendanceJournalPairsList(data);
+    if (msgEl) {
+      msgEl.textContent = `Знайдено пар: ${data.pairs.length}. Рядків у журналі за цю дату: ${data.rowsForDay.length}.`;
+      msgEl.className = 'attendance-journal-page__msg attendance-journal-page__msg--ok';
+      msgEl.hidden = false;
+    }
+  } catch (_) {
+    if (msgEl) {
+      msgEl.textContent = 'Помилка мережі';
+      msgEl.className = 'attendance-journal-page__msg attendance-journal-page__msg--err';
+      msgEl.hidden = false;
+    }
   }
 }
 
@@ -2155,9 +2366,17 @@ async function showAttendanceJournalPage() {
     window.scrollTo(0, 0);
   } catch (_) {}
   const dateEl = document.getElementById('attendance-journal-date');
+  const smartDateEl = document.getElementById('attendance-journal-smart-date');
   if (dateEl && !dateEl.value) {
     try {
       dateEl.value = new Date().toISOString().slice(0, 10);
+    } catch (_) {}
+  }
+  if (smartDateEl && dateEl && dateEl.value) {
+    smartDateEl.value = dateEl.value;
+  } else if (smartDateEl && !smartDateEl.value) {
+    try {
+      smartDateEl.value = new Date().toISOString().slice(0, 10);
     } catch (_) {}
   }
   await loadAttendanceJournalData();
@@ -2198,6 +2417,12 @@ function scheduleSubpageEscapeHandler(e) {
     return;
   }
   if (isAttendanceJournalPageVisible()) {
+    const ajPairOv = document.getElementById('attendance-journal-pair-overlay');
+    if (ajPairOv && !ajPairOv.hidden) {
+      closeAttendanceJournalPairModal();
+      e.preventDefault();
+      return;
+    }
     navigateAdminToSchedule();
     e.preventDefault();
     return;
@@ -3622,6 +3847,7 @@ document.getElementById('attendance-journal-form')?.addEventListener('submit', a
   const msg = document.getElementById('attendance-journal-form-msg');
   const dateEl = document.getElementById('attendance-journal-date');
   const nameEl = document.getElementById('attendance-journal-name');
+  const pairEl = document.getElementById('attendance-journal-pair');
   const noteEl = document.getElementById('attendance-journal-note');
   const presentEl = document.querySelector('input[name="attendance-present"]:checked');
   if (!dateEl || !nameEl) return;
@@ -3643,6 +3869,7 @@ document.getElementById('attendance-journal-form')?.addEventListener('submit', a
         fullName: nameEl.value.trim(),
         present,
         note: noteEl ? noteEl.value.trim() : '',
+        pair: pairEl ? pairEl.value.trim() : '',
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -3680,16 +3907,78 @@ document.getElementById('attendance-journal-download-btn')?.addEventListener('cl
       showToast('Не вдалося завантажити файл');
       return;
     }
-    const blob = await res.blob();
+    const buf = await res.arrayBuffer();
+    const blob = new Blob([buf], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = 'ТБА-35 test.xlsx';
+    a.style.display = 'none';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2500);
     showToast('Файл завантажено');
   } catch (_) {
     showToast('Помилка завантаження');
   }
+});
+
+document.getElementById('attendance-journal-load-day-btn')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  loadAttendanceJournalDay();
+});
+
+document.getElementById('attendance-journal-pairs-wrap')?.addEventListener('click', (e) => {
+  const unpairedBtn = e.target.closest('[data-pair-unpaired]');
+  const idxBtn = e.target.closest('[data-pair-index]');
+  if (!attendanceJournalDayCache) return;
+  if (unpairedBtn) {
+    openAttendanceJournalPairModal({
+      dateIso: attendanceJournalDayCache.date,
+      pairLabel: '',
+      names: attendanceJournalDayCache.unpaired || [],
+      title: 'Записи без колонки «Пара»',
+      isUnpaired: true,
+    });
+    return;
+  }
+  if (idxBtn) {
+    const i = parseInt(idxBtn.getAttribute('data-pair-index'), 10);
+    const p = attendanceJournalDayCache.pairs[i];
+    if (!p) return;
+    openAttendanceJournalPairModal({
+      dateIso: attendanceJournalDayCache.date,
+      pairLabel: p.pairLabel,
+      names: p.names || [],
+      title: p.pairLabel,
+      isUnpaired: false,
+    });
+  }
+});
+
+document.getElementById('attendance-journal-pair-close')?.addEventListener('click', () => {
+  closeAttendanceJournalPairModal();
+});
+
+document.getElementById('attendance-journal-pair-overlay')?.addEventListener('click', (e) => {
+  if (e.target.id === 'attendance-journal-pair-overlay') {
+    closeAttendanceJournalPairModal();
+  }
+});
+
+document.getElementById('attendance-journal-pair-add-btn')?.addEventListener('click', async () => {
+  const input = document.getElementById('attendance-journal-pair-new-name');
+  if (!input || !attendanceJournalPairModalCtx || !storedAdminPassword) return;
+  const fullName = input.value.trim();
+  if (!fullName) {
+    showToast('Введіть ПІБ');
+    return;
+  }
+  input.value = '';
+  await onAttendanceJournalToggle(fullName, true);
 });
 
 document.getElementById('important-editor-save')?.addEventListener('click', async () => {

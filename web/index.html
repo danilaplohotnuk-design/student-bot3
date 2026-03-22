@@ -348,10 +348,67 @@
           Завантажити Excel
         </button>
       </div>
+
+      <section class="attendance-journal-page__smart" aria-labelledby="attendance-journal-smart-heading">
+        <h2 id="attendance-journal-smart-heading" class="attendance-journal-page__smart-title">Розумний пошук по даті</h2>
+        <p class="attendance-journal-page__smart-hint">
+          Оберіть дату — з’являться пари з розкладу. У журналі дата може бути записана через «/», «.» або «,» — пошук це враховує.
+        </p>
+        <div class="attendance-journal-page__smart-row">
+          <label class="attendance-journal-page__label" for="attendance-journal-smart-date">Дата</label>
+          <input type="date" id="attendance-journal-smart-date" class="attendance-journal-page__input" />
+          <button type="button" id="attendance-journal-load-day-btn" class="modal-btn modal-btn-primary attendance-journal-page__smart-btn">
+            Показати пари
+          </button>
+        </div>
+        <p id="attendance-journal-day-msg" class="attendance-journal-page__msg" hidden role="status"></p>
+        <div id="attendance-journal-pairs-wrap" class="attendance-journal-page__pairs-wrap" hidden></div>
+      </section>
+
+      <div
+        id="attendance-journal-pair-overlay"
+        class="attendance-journal-pair-overlay"
+        hidden
+        aria-hidden="true"
+      >
+        <div class="attendance-journal-pair-dialog" role="dialog" aria-modal="true" aria-labelledby="attendance-journal-pair-dialog-title">
+          <button type="button" class="attendance-journal-pair-close" id="attendance-journal-pair-close" aria-label="Закрити">
+            ×
+          </button>
+          <h3 id="attendance-journal-pair-dialog-title" class="attendance-journal-pair-dialog__title"></h3>
+          <div id="attendance-journal-pair-list" class="attendance-journal-pair-list"></div>
+          <p id="attendance-journal-pair-empty" class="attendance-journal-page__empty" hidden>Немає записів у журналі для цієї пари. Додайте рядок у формі нижче, вказавши ту саму назву пари в полі «Пара».</p>
+          <div class="attendance-journal-pair-add">
+            <label class="attendance-journal-page__label" for="attendance-journal-pair-new-name">Швидко додати ПІБ для цієї пари</label>
+            <div class="attendance-journal-pair-add__row">
+              <input
+                type="text"
+                id="attendance-journal-pair-new-name"
+                class="attendance-journal-page__input"
+                maxlength="200"
+                placeholder="Прізвище та імʼя"
+                autocomplete="off"
+              />
+              <button type="button" id="attendance-journal-pair-add-btn" class="modal-btn modal-btn-secondary">Додати</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <form id="attendance-journal-form" class="attendance-journal-page__form" autocomplete="off">
         <div class="attendance-journal-page__row">
           <label class="attendance-journal-page__label" for="attendance-journal-date">Дата</label>
           <input type="date" id="attendance-journal-date" class="attendance-journal-page__input" required />
+        </div>
+        <div class="attendance-journal-page__row">
+          <label class="attendance-journal-page__label" for="attendance-journal-pair">Пара (як у розкладу, необовʼязково)</label>
+          <input
+            type="text"
+            id="attendance-journal-pair"
+            class="attendance-journal-page__input"
+            maxlength="400"
+            placeholder="Напр.: 09:00–10:20 — Майстерність актора"
+          />
         </div>
         <div class="attendance-journal-page__row">
           <label class="attendance-journal-page__label" for="attendance-journal-name">ПІБ</label>

@@ -855,6 +855,291 @@ body[data-bg-mode='light'] .attendance-journal-page__textarea {
   background: rgba(255, 255, 255, 0.45);
 }
 
+.attendance-journal-page__smart {
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+}
+
+.attendance-journal-page__smart-title {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.attendance-journal-page__smart-hint {
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  line-height: 1.45;
+}
+
+.attendance-journal-page__smart-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+@media (min-width: 520px) {
+  .attendance-journal-page__smart-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .attendance-journal-page__smart-row .attendance-journal-page__label {
+    flex: 0 0 100%;
+  }
+
+  .attendance-journal-page__smart-row .attendance-journal-page__input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .attendance-journal-page__smart-btn {
+    flex: 0 0 auto;
+  }
+}
+
+.attendance-journal-page__pairs-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.attendance-journal-page__pairs-wrap[hidden] {
+  display: none !important;
+}
+
+.attendance-journal-pair-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.12);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.attendance-journal-pair-chip:hover {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.attendance-journal-pair-chip__time {
+  display: block;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.attendance-journal-pair-chip--muted {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.attendance-journal-pair-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.attendance-journal-pair-overlay[hidden] {
+  display: none !important;
+}
+
+@media (min-width: 520px) {
+  .attendance-journal-pair-overlay {
+    align-items: center;
+  }
+}
+
+.attendance-journal-pair-dialog {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  max-height: min(78vh, 640px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 16px 16px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+}
+
+@media (min-width: 520px) {
+  .attendance-journal-pair-dialog {
+    border-radius: var(--radius);
+  }
+}
+
+.attendance-journal-pair-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.attendance-journal-pair-close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.attendance-journal-pair-dialog__title {
+  margin: 0 36px 12px 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.attendance-journal-pair-list {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.attendance-journal-pair-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.attendance-journal-pair-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.attendance-journal-pair-add {
+  flex-shrink: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.attendance-journal-pair-add__row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (min-width: 400px) {
+  .attendance-journal-pair-add__row {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .attendance-journal-pair-add__row .attendance-journal-page__input {
+    flex: 1 1 auto;
+  }
+}
+
+/* Світч присутності */
+.attendance-journal-switch {
+  position: relative;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.attendance-journal-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.attendance-journal-switch__track {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border);
+  transition: background 0.2s ease;
+}
+
+.attendance-journal-switch__thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease;
+}
+
+.attendance-journal-switch input:checked + .attendance-journal-switch__track {
+  background: rgba(76, 175, 80, 0.45);
+  border-color: rgba(76, 175, 80, 0.6);
+}
+
+.attendance-journal-switch input:checked + .attendance-journal-switch__track .attendance-journal-switch__thumb {
+  transform: translateX(20px);
+}
+
+.attendance-journal-switch__label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  pointer-events: none;
+  color: var(--text-muted);
+}
+
+body[data-bg-mode='light'] .attendance-journal-pair-row {
+  background: rgba(255, 255, 255, 0.35);
+}
+
 /* Сторінка «Важливо» (редагування нагадування) */
 .important-page {
   display: flex;
