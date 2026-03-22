@@ -200,6 +200,35 @@
       </div>
       <div id="weather-search-dim" class="weather-search-dim" aria-hidden="true"></div>
     </section>
+
+    <section id="important-page" class="important-page" hidden aria-label="Важливе повідомлення для студентів">
+      <header class="important-page__header">
+        <h1 class="important-page__title">Важливо</h1>
+        <p class="important-page__lede">Текст показується всім на головному екрані (кнопка «!»). Нижче — збережені раніше версії.</p>
+      </header>
+      <div class="important-page__editor">
+        <label for="important-editor-text" class="important-page__label">Поточне повідомлення</label>
+        <textarea
+          id="important-editor-text"
+          class="important-page__textarea"
+          rows="8"
+          maxlength="4000"
+          placeholder="Важлива інформація для студентів…"
+        ></textarea>
+        <p id="important-editor-error" class="modal-error important-page__error" hidden></p>
+        <button type="button" id="important-editor-save" class="modal-btn modal-btn-primary important-page__save">Зберегти</button>
+      </div>
+      <section class="important-page__history-block" aria-labelledby="important-history-heading">
+        <h2 id="important-history-heading" class="important-page__history-title">Попередні повідомлення</h2>
+        <div id="important-history-list" class="important-history-list"></div>
+      </section>
+    </section>
+
+    <nav id="admin-nav-dock" class="admin-nav-dock" hidden aria-label="Навігація в режимі редагування">
+      <button type="button" id="admin-nav-schedule" class="admin-nav-dock__btn" data-admin-nav="schedule">Розклад</button>
+      <button type="button" id="admin-nav-birthdays" class="admin-nav-dock__btn" data-admin-nav="birthdays">Дні народження</button>
+      <button type="button" id="admin-nav-important" class="admin-nav-dock__btn" data-admin-nav="important">Важливо</button>
+    </nav>
   </div>
 
   <button

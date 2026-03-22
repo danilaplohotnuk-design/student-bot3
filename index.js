@@ -70,7 +70,7 @@ function writeBirthdaysToDisk(birthdays) {
   return sorted;
 }
 
-/** { text, updatedAt } — updatedAt = час останньої зміни (ms), для «непрочитаного» на клієнті */
+/** { text, updatedAt, history[] } — history = попередні версії (тільки для адмінки) */
 function readReminderFromDisk() {
   try {
     const raw = fs.readFileSync(REMINDER_FILE, 'utf8');
@@ -79,18 +79,32 @@ function readReminderFromDisk() {
     let updatedAt = Number(j.updatedAt);
     if (text && (!Number.isFinite(updatedAt) || updatedAt <= 0)) {
       updatedAt = Date.now();
-      fs.writeFileSync(REMINDER_FILE, JSON.stringify({ text, updatedAt }), 'utf8');
+      const hist = Array.isArray(j.history) ? j.history : [];
+      fs.writeFileSync(REMINDER_FILE, JSON.stringify({ text, updatedAt, history: hist }), 'utf8');
     }
     if (!Number.isFinite(updatedAt)) updatedAt = 0;
-    return { text, updatedAt };
+    let history = [];
+    if (Array.isArray(j.history)) {
+      history = j.history
+        .filter((h) => h && typeof h.text === 'string' && Number.isFinite(Number(h.updatedAt)))
+        .map((h) => ({ text: h.text, updatedAt: Number(h.updatedAt) }));
+    }
+    return { text, updatedAt, history };
   } catch {
-    return { text: '', updatedAt: 0 };
+    return { text: '', updatedAt: 0, history: [] };
   }
 }
 
 function writeReminderToDisk(text) {
+  const prev = readReminderFromDisk();
+  const history = Array.isArray(prev.history) ? [...prev.history] : [];
+  const newText = String(text ?? '');
+  if (prev.text && prev.text.trim() && prev.text !== newText && prev.updatedAt > 0) {
+    history.unshift({ text: prev.text, updatedAt: prev.updatedAt });
+  }
+  while (history.length > 50) history.pop();
   const updatedAt = Date.now();
-  const payload = { text: String(text ?? ''), updatedAt };
+  const payload = { text: newText, updatedAt, history };
   fs.writeFileSync(REMINDER_FILE, JSON.stringify(payload), 'utf8');
   return payload;
 }
@@ -216,7 +230,19 @@ app.get('/api/zoom-link', (req, res) => {
 // Текст нагадування (для всіх; зберігається в reminder.json на сервері)
 app.get('/api/reminder', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json(readReminderFromDisk());
+  const r = readReminderFromDisk();
+  res.json({ text: r.text, updatedAt: r.updatedAt });
+});
+
+// Повне нагадування + історія (лише адмін)
+app.get('/api/admin/reminder', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const r = readReminderFromDisk();
+  res.json({
+    text: r.text,
+    updatedAt: r.updatedAt,
+    history: Array.isArray(r.history) ? r.history : [],
+  });
 });
 
 // Дні народження (читається з web/birthdays.json)
@@ -306,9 +332,9 @@ app.put('/api/admin/reminder', requireAdmin, (req, res) => {
   if (raw.length > 4000) {
     return res.status(400).json({ error: 'Текст не довший за 4000 символів' });
   }
-  const { text, updatedAt } = writeReminderToDisk(raw);
+  const payload = writeReminderToDisk(raw);
   res.set('Cache-Control', 'no-store');
-  res.json({ ok: true, text, updatedAt });
+  res.json({ ok: true, ...payload });
 });
 
 // Дні народження: повна заміна списку (додавання / видалення з клієнта)

@@ -1227,6 +1227,8 @@ let adminMode = false;
 let reminderText = '';
 /** Час останньої зміни на сервері (ms) — для непрочитаного */
 let reminderUpdatedAt = 0;
+/** Історія версій нагадування (лише адмін, з GET /api/admin/reminder) */
+let reminderHistory = [];
 /** Після першого запиту /api/reminder (щоб у звичайному режимі не миготіла кнопка до відповіді) */
 let reminderFetchSettled = false;
 
@@ -1560,6 +1562,110 @@ function isScheduleViewVisible() {
   return Boolean(sv && !sv.hidden);
 }
 
+function isImportantPageVisible() {
+  const p = document.getElementById('important-page');
+  return Boolean(p && !p.hidden);
+}
+
+function syncAdminDockActive() {
+  if (!adminMode) return;
+  const dock = document.getElementById('admin-nav-dock');
+  if (!dock) return;
+  dock.querySelectorAll('.admin-nav-dock__btn').forEach((b) => b.classList.remove('admin-nav-dock__btn--active'));
+  if (isWeatherPageVisible()) return;
+  let key = 'schedule';
+  if (isBirthdaysPageVisible()) key = 'birthdays';
+  else if (isImportantPageVisible()) key = 'important';
+  const active = dock.querySelector(`[data-admin-nav="${key}"]`);
+  if (active) active.classList.add('admin-nav-dock__btn--active');
+}
+
+function navigateAdminToSchedule() {
+  closeReminderPopover();
+  document.getElementById('schedule-modal-overlay')?.remove();
+  const wp = document.getElementById('weather-page');
+  const bp = document.getElementById('birthdays-page');
+  const ip = document.getElementById('important-page');
+  const sv = document.getElementById('schedule-view');
+  if (wp) wp.hidden = true;
+  if (bp) bp.hidden = true;
+  if (ip) ip.hidden = true;
+  if (sv) sv.hidden = false;
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  syncReminderTrigger();
+  syncAdminDockActive();
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+}
+
+async function fetchAdminReminderFull() {
+  if (!storedAdminPassword || !adminMode) return;
+  try {
+    const res = await fetch('/api/admin/reminder', {
+      headers: { 'x-admin-password': storedAdminPassword },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (typeof data.text === 'string') reminderText = data.text;
+    const ts = Number(data.updatedAt);
+    if (Number.isFinite(ts) && ts > 0) reminderUpdatedAt = ts;
+    reminderHistory = Array.isArray(data.history) ? data.history : [];
+    renderImportantHistoryCards();
+  } catch (_) {}
+}
+
+function renderImportantHistoryCards() {
+  const el = document.getElementById('important-history-list');
+  if (!el) return;
+  if (!reminderHistory.length) {
+    el.innerHTML =
+      '<p class="important-page__empty">Тут з’являться попередні версії після того, як ви збережете нове повідомлення (попередній текст потрапить у історію).</p>';
+    return;
+  }
+  el.innerHTML = reminderHistory
+    .map((h) => {
+      const d = h.updatedAt ? new Date(h.updatedAt) : null;
+      const dateStr =
+        d && !Number.isNaN(d.getTime())
+          ? d.toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
+          : '—';
+      const body = String(h.text || '').trim() || '—';
+      return `<article class="important-history-card"><p class="important-history-card__meta">${escapeHtml(dateStr)}</p><p class="important-history-card__text">${escapeHtml(body).replace(/\n/g, '<br>')}</p></article>`;
+    })
+    .join('');
+}
+
+function showImportantPage() {
+  if (!adminMode) return;
+  closeReminderPopover();
+  document.getElementById('schedule-modal-overlay')?.remove();
+  const sv = document.getElementById('schedule-view');
+  const wp = document.getElementById('weather-page');
+  const bp = document.getElementById('birthdays-page');
+  const ip = document.getElementById('important-page');
+  if (!sv || !ip) return;
+  if (isWeatherPageVisible()) {
+    if (wp) wp.hidden = true;
+    window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  }
+  if (bp) bp.hidden = true;
+  sv.hidden = true;
+  ip.hidden = false;
+  syncReminderTrigger();
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+  const ta = document.getElementById('important-editor-text');
+  if (ta) ta.value = reminderText;
+  fetchAdminReminderFull().then(() => {
+    if (ta) ta.value = reminderText;
+  });
+  syncAdminDockActive();
+}
+
 function scheduleSubpageEscapeHandler(e) {
   if (e.key !== 'Escape') return;
   if (isWeatherPageVisible()) {
@@ -1570,6 +1676,11 @@ function scheduleSubpageEscapeHandler(e) {
       return;
     }
     hideWeatherPage();
+    return;
+  }
+  if (isImportantPageVisible()) {
+    navigateAdminToSchedule();
+    e.preventDefault();
     return;
   }
   if (isBirthdaysPageVisible()) hideBirthdaysPage();
@@ -2164,6 +2275,7 @@ function hideWeatherPage() {
   if (sv) sv.hidden = false;
   if (wp) wp.hidden = true;
   syncReminderTrigger();
+  syncAdminDockActive();
 }
 
 async function showWeatherPage() {
@@ -2172,6 +2284,8 @@ async function showWeatherPage() {
   if (!sv || !wp) return;
   closeReminderPopover();
   document.getElementById('schedule-modal-overlay')?.remove();
+  const ip = document.getElementById('important-page');
+  if (ip) ip.hidden = true;
   if (isBirthdaysPageVisible()) hideBirthdaysPage();
   sv.hidden = true;
   wp.hidden = false;
@@ -2182,6 +2296,7 @@ async function showWeatherPage() {
     window.scrollTo(0, 0);
   } catch (_) {}
   await loadWeatherForecast();
+  syncAdminDockActive();
 }
 
 function showBirthdaysPage() {
@@ -2191,6 +2306,8 @@ function showBirthdaysPage() {
   closeReminderPopover();
   const overlay = document.getElementById('schedule-modal-overlay');
   if (overlay) overlay.remove();
+  const ip = document.getElementById('important-page');
+  if (ip) ip.hidden = true;
   /* Не викликати hideWeatherPage() — він тимчасово показує schedule-view; лише ховаємо погоду */
   if (isWeatherPageVisible()) {
     const wp = document.getElementById('weather-page');
@@ -2208,6 +2325,7 @@ function showBirthdaysPage() {
   try {
     window.scrollTo(0, 0);
   } catch (_) {}
+  syncAdminDockActive();
 }
 
 function hideBirthdaysPage() {
@@ -2218,6 +2336,7 @@ function hideBirthdaysPage() {
   if (bp) bp.hidden = true;
   updateBirthdayHomeNotice();
   syncReminderTrigger();
+  syncAdminDockActive();
 }
 
 function closeModals() {
@@ -2467,6 +2586,8 @@ function openReminderPopover() {
           reminderText = typeof data.text === 'string' ? data.text : ta.value;
           const ts = Number(data.updatedAt);
           if (Number.isFinite(ts) && ts > 0) reminderUpdatedAt = ts;
+          if (Array.isArray(data.history)) reminderHistory = data.history;
+          if (isImportantPageVisible()) renderImportantHistoryCards();
           closeReminderPopover();
           syncReminderTrigger();
           showToast('Нагадування збережено');
@@ -2543,15 +2664,25 @@ function syncAdminChrome() {
   document.body.classList.toggle('admin-mode', adminMode);
   const strip = document.getElementById('admin-exit-strip');
   const banner = document.getElementById('admin-mode-banner');
+  const dock = document.getElementById('admin-nav-dock');
   if (strip) strip.hidden = !adminMode;
   if (banner) banner.hidden = !adminMode;
+  if (dock) dock.hidden = !adminMode;
   const bap = document.getElementById('birthdays-admin-panel');
   if (bap) bap.hidden = !adminMode;
   if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
   syncReminderTrigger();
+  syncAdminDockActive();
 }
 
 function exitAdminMode() {
+  if (isImportantPageVisible()) {
+    const ip = document.getElementById('important-page');
+    const sv = document.getElementById('schedule-view');
+    if (ip) ip.hidden = true;
+    if (sv) sv.hidden = false;
+    window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  }
   adminMode = false;
   storedAdminPassword = '';
   lastAdminUiTapAt = 0;
@@ -3128,6 +3259,56 @@ const adminExitBtn = document.getElementById('admin-exit-btn');
 if (adminExitBtn) {
   adminExitBtn.addEventListener('click', () => runAdminUiAction(() => exitAdminMode()));
 }
+
+document.getElementById('admin-nav-schedule')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  navigateAdminToSchedule();
+});
+
+document.getElementById('admin-nav-birthdays')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  showBirthdaysPage();
+});
+
+document.getElementById('admin-nav-important')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  showImportantPage();
+});
+
+document.getElementById('important-editor-save')?.addEventListener('click', async () => {
+  if (!adminMode || !storedAdminPassword) return;
+  const ta = document.getElementById('important-editor-text');
+  const err = document.getElementById('important-editor-error');
+  if (!ta || !err) return;
+  err.hidden = true;
+  err.textContent = '';
+  try {
+    const res = await fetch('/api/admin/reminder', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': storedAdminPassword,
+      },
+      body: JSON.stringify({ text: ta.value }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      reminderText = typeof data.text === 'string' ? data.text : ta.value;
+      const ts = Number(data.updatedAt);
+      if (Number.isFinite(ts) && ts > 0) reminderUpdatedAt = ts;
+      if (Array.isArray(data.history)) reminderHistory = data.history;
+      renderImportantHistoryCards();
+      syncReminderTrigger();
+      showToast('Нагадування збережено');
+    } else {
+      err.textContent = data.error || 'Не вдалося зберегти';
+      err.hidden = false;
+    }
+  } catch (_) {
+    err.textContent = 'Немає зв’язку з сервером';
+    err.hidden = false;
+  }
+});
 
 const reminderTrigger = document.getElementById('reminder-trigger');
 if (reminderTrigger) {
