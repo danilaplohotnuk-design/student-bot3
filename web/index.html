@@ -334,6 +334,70 @@
       </section>
     </section>
 
+    <section id="attendance-journal-page" class="attendance-journal-page" hidden aria-label="Журнал присутніх">
+      <header class="attendance-journal-page__header">
+        <div class="app-header-block">
+          <div class="app-header-block__text">
+            <h1 class="app-title">Журнал присутніх</h1>
+            <p class="app-subtitle attendance-journal-page__subtitle">Записи зберігаються у файлі «ТБА-35 test.xlsx»</p>
+          </div>
+        </div>
+      </header>
+      <div class="attendance-journal-page__toolbar">
+        <button type="button" id="attendance-journal-download-btn" class="modal-btn modal-btn-secondary attendance-journal-page__download">
+          Завантажити Excel
+        </button>
+      </div>
+      <form id="attendance-journal-form" class="attendance-journal-page__form" autocomplete="off">
+        <div class="attendance-journal-page__row">
+          <label class="attendance-journal-page__label" for="attendance-journal-date">Дата</label>
+          <input type="date" id="attendance-journal-date" class="attendance-journal-page__input" required />
+        </div>
+        <div class="attendance-journal-page__row">
+          <label class="attendance-journal-page__label" for="attendance-journal-name">ПІБ</label>
+          <input
+            type="text"
+            id="attendance-journal-name"
+            class="attendance-journal-page__input"
+            maxlength="200"
+            placeholder="Прізвище та імʼя"
+            required
+          />
+        </div>
+        <div class="attendance-journal-page__row">
+          <span class="attendance-journal-page__label">Присутність</span>
+          <div class="attendance-journal-page__radios" role="group" aria-label="Присутність">
+            <label class="attendance-journal-page__radio-label">
+              <input type="radio" name="attendance-present" value="yes" checked />
+              Так
+            </label>
+            <label class="attendance-journal-page__radio-label">
+              <input type="radio" name="attendance-present" value="no" />
+              Ні
+            </label>
+          </div>
+        </div>
+        <div class="attendance-journal-page__row">
+          <label class="attendance-journal-page__label" for="attendance-journal-note">Примітка (необовʼязково)</label>
+          <textarea
+            id="attendance-journal-note"
+            class="attendance-journal-page__textarea"
+            rows="2"
+            maxlength="500"
+            placeholder="Короткий коментар…"
+          ></textarea>
+        </div>
+        <button type="submit" class="modal-btn modal-btn-primary attendance-journal-page__submit">Додати до журналу</button>
+        <p id="attendance-journal-form-msg" class="attendance-journal-page__msg" hidden role="status"></p>
+      </form>
+      <section class="attendance-journal-page__list-block" aria-labelledby="attendance-journal-list-heading">
+        <h2 id="attendance-journal-list-heading" class="attendance-journal-page__list-title">Останні записи</h2>
+        <div id="attendance-journal-table-wrap" class="attendance-journal-page__table-wrap">
+          <p id="attendance-journal-empty" class="attendance-journal-page__empty">Завантаження…</p>
+        </div>
+      </section>
+    </section>
+
     <nav id="user-nav-dock" class="user-nav-dock" aria-label="Головна навігація">
       <button
         type="button"
@@ -456,6 +520,24 @@
           <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
           <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
           <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        id="admin-nav-journal"
+        class="admin-nav-dock__btn"
+        data-admin-nav="journal"
+        title="Журнал присутніх"
+        aria-label="Журнал присутніх"
+      >
+        <svg class="admin-nav-dock__svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path
+            d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </button>
       <button

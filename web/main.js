@@ -805,6 +805,7 @@ function showBackgroundSettingsPage() {
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
   if (!sv || !sp || !bgp) return;
+  hideAttendanceJournalPage();
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
   if (ip) ip.hidden = true;
@@ -1520,6 +1521,7 @@ async function showStudentImportantPage() {
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
   if (!sv || !sip) return;
+  hideAttendanceJournalPage();
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
   if (ip) ip.hidden = true;
@@ -1831,6 +1833,16 @@ function isImportantPageVisible() {
   return Boolean(p && !p.hidden);
 }
 
+function hideAttendanceJournalPage() {
+  const el = document.getElementById('attendance-journal-page');
+  if (el) el.hidden = true;
+}
+
+function isAttendanceJournalPageVisible() {
+  const el = document.getElementById('attendance-journal-page');
+  return Boolean(el && !el.hidden);
+}
+
 function isSettingsPageVisible() {
   const p = document.getElementById('settings-page');
   return Boolean(p && !p.hidden);
@@ -1840,6 +1852,7 @@ function isSettingsPageVisible() {
 function navigateUserToSchedule() {
   closeReminderPopover();
   document.getElementById('schedule-modal-overlay')?.remove();
+  hideAttendanceJournalPage();
   const wp = document.getElementById('weather-page');
   const bp = document.getElementById('birthdays-page');
   const ip = document.getElementById('important-page');
@@ -1871,6 +1884,7 @@ function showSettingsPage() {
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
   if (!sv || !sp) return;
+  hideAttendanceJournalPage();
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
   if (ip) ip.hidden = true;
@@ -1934,6 +1948,7 @@ function syncAdminDockActive() {
   let key = 'schedule';
   if (isBirthdaysPageVisible()) key = 'birthdays';
   else if (isImportantPageVisible()) key = 'important';
+  else if (isAttendanceJournalPageVisible()) key = 'journal';
   const active = dock.querySelector(`[data-admin-nav="${key}"]`);
   if (active) active.classList.add('admin-nav-dock__btn--active');
 }
@@ -1941,6 +1956,7 @@ function syncAdminDockActive() {
 function navigateAdminToSchedule() {
   closeReminderPopover();
   document.getElementById('schedule-modal-overlay')?.remove();
+  hideAttendanceJournalPage();
   const wp = document.getElementById('weather-page');
   const bp = document.getElementById('birthdays-page');
   const ip = document.getElementById('important-page');
@@ -2041,6 +2057,7 @@ function showImportantPage() {
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
   if (!sv || !ip) return;
+  hideAttendanceJournalPage();
   if (sp) sp.hidden = true;
   if (bgp) bgp.hidden = true;
   if (sip) sip.hidden = true;
@@ -2060,6 +2077,90 @@ function showImportantPage() {
   const ta = document.getElementById('important-editor-text');
   if (ta) ta.value = '';
   fetchAdminReminderFull();
+  syncAdminDockActive();
+  syncUserNavDockActive();
+}
+
+function renderAttendanceJournalTable(rows) {
+  const wrap = document.getElementById('attendance-journal-table-wrap');
+  if (!wrap) return;
+  if (!rows.length) {
+    wrap.innerHTML =
+      '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Поки немає записів. Додайте перший рядок вище.</p>';
+    return;
+  }
+  const last = rows.slice(-40).reverse();
+  const thead =
+    '<thead><tr><th>Дата</th><th>ПІБ</th><th>Присутність</th><th>Примітка</th></tr></thead>';
+  const tbody = last
+    .map((r) => {
+      const d = escapeHtml(String(r['Дата'] ?? ''));
+      const n = escapeHtml(String(r['ПІБ'] ?? ''));
+      const p = escapeHtml(String(r['Присутність'] ?? ''));
+      const note = escapeHtml(String(r['Примітка'] ?? ''));
+      return `<tr><td>${d}</td><td>${n}</td><td>${p}</td><td>${note}</td></tr>`;
+    })
+    .join('');
+  wrap.innerHTML = `<table class="attendance-journal-page__table" aria-label="Записи журналу">${thead}<tbody>${tbody}</tbody></table>`;
+}
+
+async function loadAttendanceJournalData() {
+  const wrap = document.getElementById('attendance-journal-table-wrap');
+  if (!wrap || !storedAdminPassword) return;
+  wrap.innerHTML =
+    '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Завантаження…</p>';
+  try {
+    const res = await fetch('/api/admin/attendance', {
+      headers: { 'x-admin-password': storedAdminPassword },
+    });
+    if (!res.ok) throw new Error('fail');
+    const data = await res.json();
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    renderAttendanceJournalTable(rows);
+  } catch (_) {
+    wrap.innerHTML =
+      '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Не вдалося завантажити журнал.</p>';
+  }
+}
+
+async function showAttendanceJournalPage() {
+  if (!adminMode) return;
+  closeReminderPopover();
+  document.getElementById('schedule-modal-overlay')?.remove();
+  const sv = document.getElementById('schedule-view');
+  const wp = document.getElementById('weather-page');
+  const bp = document.getElementById('birthdays-page');
+  const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
+  const ajp = document.getElementById('attendance-journal-page');
+  if (!sv || !ajp) return;
+  if (wp) wp.hidden = true;
+  if (bp) bp.hidden = true;
+  if (ip) ip.hidden = true;
+  if (sp) sp.hidden = true;
+  if (bgp) bgp.hidden = true;
+  if (sip) sip.hidden = true;
+  if (isWeatherPageVisible()) {
+    const w = document.getElementById('weather-page');
+    if (w) w.hidden = true;
+    window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  }
+  sv.hidden = true;
+  ajp.hidden = false;
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+  const dateEl = document.getElementById('attendance-journal-date');
+  if (dateEl && !dateEl.value) {
+    try {
+      dateEl.value = new Date().toISOString().slice(0, 10);
+    } catch (_) {}
+  }
+  await loadAttendanceJournalData();
   syncAdminDockActive();
   syncUserNavDockActive();
 }
@@ -2092,6 +2193,11 @@ function scheduleSubpageEscapeHandler(e) {
     return;
   }
   if (isImportantPageVisible()) {
+    navigateAdminToSchedule();
+    e.preventDefault();
+    return;
+  }
+  if (isAttendanceJournalPageVisible()) {
     navigateAdminToSchedule();
     e.preventDefault();
     return;
@@ -2711,6 +2817,7 @@ async function showWeatherPage() {
   const sp = document.getElementById('settings-page');
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
+  hideAttendanceJournalPage();
   if (ip) ip.hidden = true;
   if (sp) sp.hidden = true;
   if (bgp) bgp.hidden = true;
@@ -2740,6 +2847,7 @@ function showBirthdaysPage() {
   const sp = document.getElementById('settings-page');
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
+  hideAttendanceJournalPage();
   if (ip) ip.hidden = true;
   if (sp) sp.hidden = true;
   if (bgp) bgp.hidden = true;
@@ -2898,6 +3006,12 @@ function exitAdminMode() {
     const ip = document.getElementById('important-page');
     const sv = document.getElementById('schedule-view');
     if (ip) ip.hidden = true;
+    if (sv) sv.hidden = false;
+    window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  }
+  if (isAttendanceJournalPageVisible()) {
+    hideAttendanceJournalPage();
+    const sv = document.getElementById('schedule-view');
     if (sv) sv.hidden = false;
     window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
   }
@@ -3495,6 +3609,87 @@ document.getElementById('admin-nav-birthdays')?.addEventListener('click', () => 
 document.getElementById('admin-nav-important')?.addEventListener('click', () => {
   if (!adminMode) return;
   showImportantPage();
+});
+
+document.getElementById('admin-nav-journal')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  showAttendanceJournalPage();
+});
+
+document.getElementById('attendance-journal-form')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!adminMode || !storedAdminPassword) return;
+  const msg = document.getElementById('attendance-journal-form-msg');
+  const dateEl = document.getElementById('attendance-journal-date');
+  const nameEl = document.getElementById('attendance-journal-name');
+  const noteEl = document.getElementById('attendance-journal-note');
+  const presentEl = document.querySelector('input[name="attendance-present"]:checked');
+  if (!dateEl || !nameEl) return;
+  const present = presentEl && presentEl.value === 'yes';
+  if (msg) {
+    msg.hidden = true;
+    msg.textContent = '';
+    msg.className = 'attendance-journal-page__msg';
+  }
+  try {
+    const res = await fetch('/api/admin/attendance/row', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': storedAdminPassword,
+      },
+      body: JSON.stringify({
+        date: dateEl.value,
+        fullName: nameEl.value.trim(),
+        present,
+        note: noteEl ? noteEl.value.trim() : '',
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      nameEl.value = '';
+      if (noteEl) noteEl.value = '';
+      if (msg) {
+        msg.textContent = 'Запис додано до файлу Excel.';
+        msg.className = 'attendance-journal-page__msg attendance-journal-page__msg--ok';
+        msg.hidden = false;
+      }
+      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : []);
+      showToast('Запис збережено в журналі');
+    } else if (msg) {
+      msg.textContent = data.error || 'Не вдалося зберегти';
+      msg.className = 'attendance-journal-page__msg attendance-journal-page__msg--err';
+      msg.hidden = false;
+    }
+  } catch (_) {
+    if (msg) {
+      msg.textContent = 'Помилка мережі';
+      msg.className = 'attendance-journal-page__msg attendance-journal-page__msg--err';
+      msg.hidden = false;
+    }
+  }
+});
+
+document.getElementById('attendance-journal-download-btn')?.addEventListener('click', async () => {
+  if (!adminMode || !storedAdminPassword) return;
+  try {
+    const res = await fetch('/api/admin/attendance/download', {
+      headers: { 'x-admin-password': storedAdminPassword },
+    });
+    if (!res.ok) {
+      showToast('Не вдалося завантажити файл');
+      return;
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'ТБА-35 test.xlsx';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('Файл завантажено');
+  } catch (_) {
+    showToast('Помилка завантаження');
+  }
 });
 
 document.getElementById('important-editor-save')?.addEventListener('click', async () => {

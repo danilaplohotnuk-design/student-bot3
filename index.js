@@ -9,6 +9,12 @@ import dotenv from 'dotenv';
 import { getScheduleByDate, schedule } from './schedule.js';
 import { getZoomLink } from './zoom-links.js';
 import { recordPageVisit, recordHealthPing, getStats } from './stats.js';
+import {
+  readJournalRows,
+  appendJournalRow,
+  getJournalFileBuffer,
+  ATTENDANCE_JOURNAL_FILENAME,
+} from './attendance-journal.js';
 
 dotenv.config();
 
@@ -370,6 +376,46 @@ app.put('/api/admin/birthdays', requireAdmin, (req, res) => {
   const saved = writeBirthdaysToDisk(validated);
   res.set('Cache-Control', 'no-store');
   res.json({ ok: true, birthdays: saved });
+});
+
+// Журнал присутніх (Excel: ТБА-35 test.xlsx)
+app.get('/api/admin/attendance', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const data = readJournalRows();
+    res.json({ ok: true, ...data });
+  } catch (err) {
+    console.error('attendance read:', err);
+    res.status(500).json({ error: 'Не вдалося прочитати журнал' });
+  }
+});
+
+app.post('/api/admin/attendance/row', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const data = appendJournalRow(req.body || {});
+    res.json({ ok: true, ...data });
+  } catch (err) {
+    const msg = err && err.message ? String(err.message) : String(err);
+    if (msg.includes('Потрібні')) {
+      return res.status(400).json({ error: msg });
+    }
+    console.error('attendance append:', err);
+    res.status(500).json({ error: 'Не вдалося зберегти запис' });
+  }
+});
+
+app.get('/api/admin/attendance/download', requireAdmin, (req, res) => {
+  try {
+    const buf = getJournalFileBuffer();
+    const encoded = encodeURIComponent(ATTENDANCE_JOURNAL_FILENAME);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encoded}`);
+    res.send(buf);
+  } catch (err) {
+    console.error('attendance download:', err);
+    res.status(500).json({ error: 'Не вдалося віддати файл' });
+  }
 });
 
 // --------- Старт сервера ---------
