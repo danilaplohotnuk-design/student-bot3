@@ -17,7 +17,7 @@
         type="button"
         id="header-weather-btn"
         class="app-header-btn"
-        aria-label="Погода на тиждень у Києві"
+        aria-label="Погода на тиждень"
       >
         <span class="app-header-btn__inner">
           <span class="app-title">Розклад</span>
@@ -140,17 +140,62 @@
       <div id="birthdays-page-list" class="birthdays-page__list birthdays-list" role="list"></div>
     </section>
 
-    <section id="weather-page" class="weather-page" hidden aria-label="Погода в Києві">
+    <section id="weather-page" class="weather-page" hidden aria-label="Погода">
       <header class="weather-page__header">
         <button type="button" id="weather-back-btn" class="weather-page__back btn-bg" aria-label="Назад до розкладу">
           ← Назад
         </button>
-        <h1 class="weather-page__title">Погода в Києві</h1>
-        <p class="weather-page__subtitle">Прогноз на 7 днів (Open-Meteo)</p>
+        <h1 id="weather-page-title" class="weather-page__title">Погода</h1>
+        <p id="weather-page-subtitle" class="weather-page__subtitle">Прогноз на 7 днів</p>
       </header>
+      <div class="weather-page__toolbar">
+        <div class="weather-page__search">
+          <label for="weather-search-input" class="weather-search-label">Місто чи громада</label>
+          <input
+            type="search"
+            id="weather-search-input"
+            class="weather-search-input"
+            placeholder="Пошук міста, села, громади…"
+            autocomplete="off"
+            enterkeyhint="search"
+            maxlength="120"
+          />
+          <div
+            id="weather-search-results"
+            class="weather-search-results"
+            hidden
+            role="region"
+            aria-label="Результати пошуку місць"
+          ></div>
+        </div>
+        <div class="weather-toolbar-switch" aria-hidden="false">
+          <button
+            type="button"
+            id="weather-locate-btn"
+            class="weather-locate-btn btn-bg weather-toolbar-switch__btn"
+            title="Погода за моїм місцезнаходженням"
+            aria-label="Визначити погоду за моїм місцезнаходженням"
+          >
+            <span class="weather-locate-btn__icon" aria-hidden="true">📍</span>
+            <span class="weather-locate-btn__text">Тут</span>
+          </button>
+          <button
+            type="button"
+            id="weather-search-exit-btn"
+            class="weather-search-exit-btn weather-toolbar-switch__btn weather-toolbar-switch__btn--hidden"
+            title="Закрити пошук"
+            aria-label="Закрити пошук населеного пункту"
+            tabindex="-1"
+          >
+            <span class="weather-search-exit-btn__icon" aria-hidden="true">×</span>
+          </button>
+        </div>
+      </div>
+      <p id="weather-page-msg" class="weather-page__msg" hidden role="status" aria-live="polite"></p>
       <div id="weather-page-body" class="weather-page__body">
         <p class="weather-page__state" id="weather-page-state">Завантаження…</p>
       </div>
+      <div id="weather-search-dim" class="weather-search-dim" aria-hidden="true"></div>
     </section>
   </div>
 

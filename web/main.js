@@ -1489,6 +1489,12 @@ function isWeatherPageVisible() {
 function scheduleSubpageEscapeHandler(e) {
   if (e.key !== 'Escape') return;
   if (isWeatherPageVisible()) {
+    const dim = document.getElementById('weather-search-dim');
+    if (dim && dim.classList.contains('weather-search-dim--visible')) {
+      closeWeatherSearchOverlay();
+      e.preventDefault();
+      return;
+    }
     hideWeatherPage();
     return;
   }
@@ -1535,20 +1541,259 @@ function wmoWeatherLabel(code) {
 const KYIV_LAT = 50.4501;
 const KYIV_LON = 30.5234;
 
-async function loadWeatherKyiv() {
+const WEATHER_LOC_KEY = 'tg_schedule_weather_location_v1';
+
+function defaultWeatherLocation() {
+  return {
+    lat: KYIV_LAT,
+    lon: KYIV_LON,
+    label: 'Київ',
+    source: 'default',
+  };
+}
+
+function readWeatherLocation() {
+  try {
+    const raw = localStorage.getItem(WEATHER_LOC_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    const lat = Number(o.lat);
+    const lon = Number(o.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    const label = typeof o.label === 'string' && o.label.trim() ? o.label.trim() : 'Обране місце';
+    return { lat, lon, label, source: o.source || 'saved' };
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeWeatherLocation({ lat, lon, label, source }) {
+  try {
+    localStorage.setItem(
+      WEATHER_LOC_KEY,
+      JSON.stringify({
+        lat,
+        lon,
+        label,
+        source: source || 'saved',
+      }),
+    );
+  } catch (_) {}
+}
+
+/** Сьогодні YYYY-MM-DD у заданому часовому поясі (як у відповіді Open-Meteo). */
+function localTodayIso(timeZone) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    return y && m && d ? `${y}-${m}-${d}` : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function formatDayHeaderUk(dayStr, timeZone) {
+  const [y, m, d] = dayStr.split('-').map(Number);
+  if (!y || !m || !d) return dayStr;
+  const utc = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  try {
+    return new Intl.DateTimeFormat('uk-UA', {
+      timeZone,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    }).format(utc);
+  } catch (_) {
+    return new Date(`${dayStr}T12:00:00`).toLocaleDateString('uk-UA', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+  }
+}
+
+function setWeatherHeaderTitle(label) {
+  const el = document.getElementById('weather-page-title');
+  const sub = document.getElementById('weather-page-subtitle');
+  const short = label ? weatherPlaceTitleShort(label) : '';
+  if (el) el.textContent = short || 'Погода';
+  if (sub) {
+    sub.textContent = 'Прогноз на 7 днів';
+  }
+}
+
+function showWeatherPageMessage(text, isError) {
+  const el = document.getElementById('weather-page-msg');
+  if (!el) return;
+  if (!text) {
+    el.textContent = '';
+    el.hidden = true;
+    el.classList.remove('weather-page__msg--error');
+    return;
+  }
+  el.textContent = text;
+  el.hidden = false;
+  el.classList.toggle('weather-page__msg--error', !!isError);
+}
+
+function formatGeoResult(r) {
+  const parts = [r.name];
+  if (r.admin1) parts.push(r.admin1);
+  if (r.country) parts.push(r.country);
+  return parts.join(', ');
+}
+
+/** Назва міста / пункту для заголовка та збереження (лише `name` з API). */
+function geoPlaceNameOnly(r) {
+  if (!r || typeof r !== 'object') return '';
+  const n = typeof r.name === 'string' ? r.name.trim() : '';
+  return n || formatGeoResult(r);
+}
+
+/** Старі збереження могли мати «Київ, область, країна» — для заголовка беремо лише перший фрагмент. */
+function weatherPlaceTitleShort(label) {
+  if (!label || typeof label !== 'string') return '';
+  const t = label.trim();
+  if (!t) return '';
+  const i = t.indexOf(',');
+  if (i === -1) return t;
+  const first = t.slice(0, i).trim();
+  return first || t;
+}
+
+/** Другий рядок у картці пошуку: область · країна (без повтору назви). */
+function geoResultSubtitle(r) {
+  if (!r || typeof r !== 'object') return '';
+  const parts = [];
+  if (r.admin1) parts.push(String(r.admin1).trim());
+  if (r.country) parts.push(String(r.country).trim());
+  return parts.filter(Boolean).join(' · ');
+}
+
+async function searchGeocoding(query) {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
+  url.searchParams.set('name', q);
+  url.searchParams.set('count', '10');
+  url.searchParams.set('language', 'uk');
+  url.searchParams.set('format', 'json');
+  const res = await fetch(url.toString());
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data.results) ? data.results : [];
+}
+
+/** Назва місця за координатами (клієнтський API без ключа). */
+async function reverseGeocodeLabel(lat, lon) {
+  try {
+    const url = new URL('https://api.bigdatacloud.net/data/reverse-geocode-client');
+    url.searchParams.set('latitude', String(lat));
+    url.searchParams.set('longitude', String(lon));
+    url.searchParams.set('localityLanguage', 'uk');
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(String(res.status));
+    const j = await res.json();
+    const city = j.city || j.locality || j.principalSubdivision || '';
+    const line = typeof city === 'string' ? city.trim() : '';
+    return line || 'Моє розташування';
+  } catch (_) {
+    return 'Моє розташування';
+  }
+}
+
+let weatherSearchSeq = 0;
+let weatherSearchDebounceTimer;
+/** true після вибору пункту зі списку — щоб при blur не стерти поле до вибору */
+let weatherSearchPickedThisSession = false;
+
+function hideWeatherSearchResults() {
+  const panel = document.getElementById('weather-search-results');
+  if (panel) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+  }
+  updateWeatherSearchDim();
+}
+
+/** Закрити пошук: стерти текст, прибрати розмиття, показати знову «Тут». */
+function closeWeatherSearchOverlay() {
+  const input = document.getElementById('weather-search-input');
+  if (input) input.value = '';
+  weatherSearchPickedThisSession = false;
+  hideWeatherSearchResults();
+  if (input) {
+    try {
+      input.blur();
+    } catch (_) {}
+  }
+  updateWeatherSearchDim();
+}
+
+/** Розмиття решти сторінки, коли активний пошук (фокус / введення / відкриті результати). */
+function updateWeatherSearchDim() {
+  const dim = document.getElementById('weather-search-dim');
+  const input = document.getElementById('weather-search-input');
+  const results = document.getElementById('weather-search-results');
+  const locateBtn = document.getElementById('weather-locate-btn');
+  const exitBtn = document.getElementById('weather-search-exit-btn');
+  const toolbarSwitch =
+    locateBtn?.closest('.weather-toolbar-switch') ||
+    exitBtn?.closest('.weather-toolbar-switch') ||
+    null;
+  if (!dim || !input) return;
+  const typing = input.value.trim().length >= 1;
+  const focused = document.activeElement === input;
+  const hasResultsOpen = Boolean(results && !results.hidden && results.childElementCount > 0);
+  const show = focused || typing || hasResultsOpen;
+  dim.classList.toggle('weather-search-dim--visible', show);
+  dim.setAttribute('aria-hidden', show ? 'false' : 'true');
+  if (toolbarSwitch) toolbarSwitch.classList.toggle('weather-toolbar-switch--search', show);
+  if (locateBtn) {
+    locateBtn.classList.toggle('weather-toolbar-switch__btn--hidden', show);
+    locateBtn.setAttribute('aria-hidden', show ? 'true' : 'false');
+    locateBtn.tabIndex = show ? -1 : 0;
+  }
+  if (exitBtn) {
+    exitBtn.classList.toggle('weather-toolbar-switch__btn--hidden', !show);
+    exitBtn.setAttribute('aria-hidden', !show ? 'true' : 'false');
+    exitBtn.tabIndex = !show ? -1 : 0;
+  }
+}
+
+/** Великі градуси справа: візуальне центрування лише по цифрах; «°» не зміщує центр */
+function weatherNowTempDigitsHtml(value) {
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return '—';
+  return `<span class="weather-now__numwrap"><span class="weather-now__num">${escapeHtml(String(n))}</span><span class="weather-now__deg" aria-hidden="true">°</span></span>`;
+}
+
+async function loadWeatherForecast() {
   const body = document.getElementById('weather-page-body');
   if (!body) return;
+  showWeatherPageMessage('');
+  const loc = readWeatherLocation() || defaultWeatherLocation();
+  setWeatherHeaderTitle(loc.label);
   body.innerHTML =
     '<p class="weather-page__state" id="weather-page-state">Завантаження…</p>';
   try {
     const url = new URL('https://api.open-meteo.com/v1/forecast');
-    url.searchParams.set('latitude', String(KYIV_LAT));
-    url.searchParams.set('longitude', String(KYIV_LON));
+    url.searchParams.set('latitude', String(loc.lat));
+    url.searchParams.set('longitude', String(loc.lon));
     url.searchParams.set(
       'daily',
-      'weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+      'weathercode,temperature_2m_max,temperature_2m_min,temperature_2m_mean,precipitation_probability_max',
     );
-    url.searchParams.set('timezone', 'Europe/Kyiv');
+    url.searchParams.set('hourly', 'temperature_2m');
+    url.searchParams.set('current', 'temperature_2m,weather_code');
+    url.searchParams.set('timezone', 'auto');
     url.searchParams.set('forecast_days', '7');
     const res = await fetch(url.toString());
     if (!res.ok) throw new Error(String(res.status));
@@ -1559,16 +1804,61 @@ async function loadWeatherKyiv() {
     const codes = daily.weathercode || [];
     const tMax = daily.temperature_2m_max || [];
     const tMin = daily.temperature_2m_min || [];
+    const tMean = daily.temperature_2m_mean || [];
     const precip = daily.precipitation_probability_max || [];
+
+    const hTimes = data?.hourly?.time || [];
+    const hTemps = data?.hourly?.temperature_2m || [];
+
+    function medianRounded(nums) {
+      if (!nums.length) return null;
+      const s = [...nums].sort((a, b) => a - b);
+      const mid = Math.floor(s.length / 2);
+      const v = s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+      return Math.round(v);
+    }
+
+    /** Погодинні значення за календарний день (локальний час прогнозу). */
+    function tempsForCalendarDay(dayStr) {
+      const list = [];
+      for (let j = 0; j < hTimes.length; j++) {
+        const t = hTimes[j];
+        if (typeof t !== 'string' || t.length < 10) continue;
+        if (t.slice(0, 10) !== dayStr) continue;
+        const v = hTemps[j];
+        if (Number.isFinite(Number(v))) list.push(Number(v));
+      }
+      return list;
+    }
+
+    /**
+     * Найімовірніша температура за добу: медіана погодинних значень
+     * (типовий день без акценту на «середню» арифметично).
+     * Якщо погодинних даних немає — добова середня з API, далі (макс+мін)/2.
+     */
+    function dayMostLikelyTempRounded(i) {
+      const dayStr = times[i];
+      const fromHourly = medianRounded(tempsForCalendarDay(dayStr));
+      if (fromHourly !== null) return fromHourly;
+      const m = tMean[i];
+      if (Number.isFinite(Number(m))) return Math.round(Number(m));
+      const hi = tMax[i];
+      const lo = tMin[i];
+      if (Number.isFinite(Number(hi)) && Number.isFinite(Number(lo))) {
+        return Math.round((Number(hi) + Number(lo)) / 2);
+      }
+      return null;
+    }
+
+    const cur = data?.current;
+    const curTemp = cur?.temperature_2m;
+    const tz = data?.timezone || 'UTC';
+    const todayIso = localTodayIso(tz);
+    const placeLabel = weatherPlaceTitleShort(loc.label) || loc.label;
 
     body.innerHTML = '';
     times.forEach((dayStr, i) => {
-      const d = new Date(`${dayStr}T12:00:00`);
-      const dateLine = d.toLocaleDateString('uk-UA', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-      });
+      const dateLine = formatDayHeaderUk(dayStr, tz);
       const code = codes[i];
       const desc = wmoWeatherLabel(code);
       const hi = tMax[i];
@@ -1581,19 +1871,216 @@ async function loadWeatherKyiv() {
         rainLine = `<div class="weather-day__rain">Ймовірність опадів: ${Math.round(Number(pr))}%</div>`;
       }
 
+      const isToday = todayIso && dayStr === todayIso;
+      let nowBlock = '';
+      if (isToday && Number.isFinite(Number(curTemp))) {
+        nowBlock = `<aside class="weather-day__now" aria-label="Погода зараз: ${escapeHtml(placeLabel)}">
+          <div class="weather-now__temp">${weatherNowTempDigitsHtml(curTemp)}</div>
+          <div class="weather-now__desc weather-now__desc--likely">температура зараз</div>
+        </aside>`;
+      } else if (isToday) {
+        nowBlock =
+          '<aside class="weather-day__now weather-day__now--empty" aria-hidden="true"><span class="weather-now__muted">—</span></aside>';
+      } else {
+        const likelyRounded = dayMostLikelyTempRounded(i);
+        if (likelyRounded !== null) {
+          nowBlock = `<aside class="weather-day__now weather-day__now--forecast" aria-label="Ймовірна температура за добу">
+            <div class="weather-now__temp">${weatherNowTempDigitsHtml(likelyRounded)}</div>
+            <div class="weather-now__desc weather-now__desc--likely">температура за добу</div>
+          </aside>`;
+        } else {
+          nowBlock =
+            '<aside class="weather-day__now weather-day__now--empty" aria-hidden="true"><span class="weather-now__muted">—</span></aside>';
+        }
+      }
+
       const card = document.createElement('div');
       card.className = 'weather-day';
       card.innerHTML = `
-        <div class="weather-day__date">${escapeHtml(dateLine)}</div>
-        <div class="weather-day__desc">${escapeHtml(desc)}</div>
-        <div class="weather-day__temps">${escapeHtml(hiT)} / ${escapeHtml(loT)} <span class="weather-day__temps-note">(макс / мін)</span></div>
-        ${rainLine}
+        <div class="weather-day__main">
+          <div class="weather-day__date">${escapeHtml(dateLine)}</div>
+          <div class="weather-day__desc">${escapeHtml(desc)}</div>
+          <div class="weather-day__temps">${escapeHtml(hiT)} / ${escapeHtml(loT)} <span class="weather-day__temps-note">(макс / мін)</span></div>
+          ${rainLine}
+        </div>
+        ${nowBlock}
       `;
       body.appendChild(card);
     });
   } catch (_) {
     body.innerHTML = `<p class="weather-page__state weather-page__state--error" id="weather-page-state">Не вдалося завантажити прогноз. Перевірте інтернет.</p>`;
   }
+}
+
+function initWeatherPageControls() {
+  const input = document.getElementById('weather-search-input');
+  const resultsPanel = document.getElementById('weather-search-results');
+  const locateBtn = document.getElementById('weather-locate-btn');
+  const dim = document.getElementById('weather-search-dim');
+  if (!input || !resultsPanel) return;
+
+  if (dim) {
+    dim.addEventListener('click', () => closeWeatherSearchOverlay());
+  }
+
+  const exitBtn = document.getElementById('weather-search-exit-btn');
+  if (exitBtn) {
+    exitBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      closeWeatherSearchOverlay();
+    });
+  }
+
+  const runSearch = async () => {
+    const q = input.value;
+    if (q.trim().length < 2) {
+      hideWeatherSearchResults();
+      return;
+    }
+    const seq = ++weatherSearchSeq;
+    try {
+      const results = await searchGeocoding(q);
+      if (seq !== weatherSearchSeq) return;
+      resultsPanel.innerHTML = '';
+      if (!results.length) {
+        const empty = document.createElement('div');
+        empty.className = 'weather-search-results__empty';
+        empty.textContent = 'Нічого не знайдено. Спробуйте іншу назву.';
+        resultsPanel.appendChild(empty);
+        resultsPanel.hidden = false;
+        updateWeatherSearchDim();
+        return;
+      }
+      results.forEach((r) => {
+        const titleShort = geoPlaceNameOnly(r);
+        const sub = geoResultSubtitle(r);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'weather-search-card';
+        btn.setAttribute('aria-label', formatGeoResult(r));
+        btn.dataset.lat = String(r.latitude);
+        btn.dataset.lon = String(r.longitude);
+        btn.dataset.label = titleShort;
+
+        const titleEl = document.createElement('span');
+        titleEl.className = 'weather-search-card__title';
+        titleEl.textContent = titleShort || r.name || '—';
+
+        const metaEl = document.createElement('span');
+        metaEl.className = 'weather-search-card__meta';
+        metaEl.textContent = sub;
+        metaEl.hidden = !sub;
+
+        btn.appendChild(titleEl);
+        btn.appendChild(metaEl);
+
+        const pick = () => {
+          weatherSearchPickedThisSession = true;
+          hideWeatherSearchResults();
+          input.value = '';
+          writeWeatherLocation({
+            lat: r.latitude,
+            lon: r.longitude,
+            label: titleShort,
+            source: 'search',
+          });
+          setWeatherHeaderTitle(titleShort);
+          loadWeatherForecast();
+        };
+        btn.addEventListener('mousedown', () => {
+          weatherSearchPickedThisSession = true;
+        });
+        btn.addEventListener('click', pick);
+        resultsPanel.appendChild(btn);
+      });
+      resultsPanel.hidden = false;
+      updateWeatherSearchDim();
+    } catch (_) {
+      if (seq !== weatherSearchSeq) return;
+      resultsPanel.innerHTML = '';
+      const empty = document.createElement('div');
+      empty.className = 'weather-search-results__empty';
+      empty.textContent = 'Не вдалося підвантажити пошук. Перевірте інтернет.';
+      resultsPanel.appendChild(empty);
+      resultsPanel.hidden = false;
+      updateWeatherSearchDim();
+    }
+  };
+
+  input.addEventListener('input', () => {
+    updateWeatherSearchDim();
+    clearTimeout(weatherSearchDebounceTimer);
+    weatherSearchDebounceTimer = setTimeout(runSearch, 320);
+  });
+
+  input.addEventListener('focus', () => {
+    weatherSearchPickedThisSession = false;
+    updateWeatherSearchDim();
+    if (input.value.trim().length >= 2 && resultsPanel.childElementCount) resultsPanel.hidden = false;
+  });
+
+  input.addEventListener('blur', () => {
+    setTimeout(() => {
+      if (weatherSearchPickedThisSession) {
+        updateWeatherSearchDim();
+        return;
+      }
+      const ae = document.activeElement;
+      if (resultsPanel && ae && resultsPanel.contains(ae)) {
+        updateWeatherSearchDim();
+        return;
+      }
+      input.value = '';
+      updateWeatherSearchDim();
+    }, 220);
+  });
+
+  if (locateBtn) {
+    locateBtn.addEventListener('click', async () => {
+      if (!navigator.geolocation) {
+        showWeatherPageMessage('Геолокація не підтримується цим браузером.', true);
+        return;
+      }
+      showWeatherPageMessage('');
+      locateBtn.disabled = true;
+      locateBtn.setAttribute('aria-busy', 'true');
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 22000,
+            maximumAge: 60000,
+          });
+        });
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const label = await reverseGeocodeLabel(lat, lon);
+        writeWeatherLocation({ lat, lon, label, source: 'geo' });
+        setWeatherHeaderTitle(label);
+        hideWeatherSearchResults();
+        await loadWeatherForecast();
+      } catch (e) {
+        const denied = e && (e.code === 1 || e.code === '1');
+        showWeatherPageMessage(
+          denied
+            ? 'Доступ до геолокації заборонено. Дозвольте доступ у налаштуваннях або оберіть місце вручну.'
+            : 'Не вдалося визначити місцезнаходження. Спробуйте кнопку «Тут» ще раз або оберіть місто в пошуку.',
+          true,
+        );
+      } finally {
+        locateBtn.disabled = false;
+        locateBtn.removeAttribute('aria-busy');
+      }
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (!isWeatherPageVisible()) return;
+    const wrap = input.closest('.weather-page__search');
+    if (wrap && !wrap.contains(e.target)) hideWeatherSearchResults();
+  });
+
+  updateWeatherSearchDim();
 }
 
 function hideWeatherPage() {
@@ -1618,7 +2105,7 @@ async function showWeatherPage() {
   try {
     window.scrollTo(0, 0);
   } catch (_) {}
-  await loadWeatherKyiv();
+  await loadWeatherForecast();
 }
 
 function showBirthdaysPage() {
@@ -2499,6 +2986,7 @@ document.getElementById('birthdays-back-btn')?.addEventListener('click', () => h
 
 document.getElementById('header-weather-btn')?.addEventListener('click', () => showWeatherPage());
 document.getElementById('weather-back-btn')?.addEventListener('click', () => hideWeatherPage());
+initWeatherPageControls();
 
 document.getElementById('birthdays-admin-add')?.addEventListener('click', () => birthdaysAdminSubmitAdd());
 
