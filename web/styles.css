@@ -218,62 +218,6 @@ body:not([data-bg-kind="image"]) .app-tba-watermark {
   }
 }
 
-/* Вихід з режиму редагування — одна панель як картка пари; лише для адміна (JS ставить hidden) */
-/* display:flex на класі перебиває атрибут [hidden] — тому !important */
-.admin-exit-strip[hidden] {
-  display: none !important;
-}
-
-body:not(.admin-mode) .admin-exit-strip {
-  display: none !important;
-}
-
-.admin-exit-strip {
-  width: 100%;
-  flex-shrink: 0;
-  margin-top: 12px;
-  margin-bottom: 4px;
-  z-index: 10;
-}
-
-.admin-exit-btn {
-  box-sizing: border-box;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  color: var(--text);
-  cursor: pointer;
-  font-family: var(--font);
-  transition: transform 0.12s ease, color 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.admin-exit-btn:hover {
-  background: transparent;
-}
-
-.admin-exit-btn:active {
-  transform: scale(0.98);
-}
-
-.admin-exit-label {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  line-height: 1.2;
-  text-transform: uppercase;
-  text-align: center;
-}
-
 /* Підпис під «Сьогодні / Завтра» + пунктир */
 .admin-mode-banner {
   margin: 0 0 20px;
@@ -297,9 +241,9 @@ body:not(.admin-mode) .admin-exit-strip {
   height: 0;
 }
 
-/* ---------- Адмін: нижня навігація (розклад / ДН / Важливо) ---------- */
+/* ---------- Адмін: нижня панель (іконки в один ряд: розклад / ДН / важливо / вихід) ---------- */
 body.admin-mode .app-shell {
-  padding-bottom: calc(24px + 76px + env(safe-area-inset-bottom));
+  padding-bottom: calc(24px + 64px + env(safe-area-inset-bottom));
 }
 
 .admin-nav-dock {
@@ -314,8 +258,8 @@ body.admin-mode .app-shell {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  gap: 8px;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  gap: 6px;
+  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
   background: rgba(15, 19, 32, 0.88);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
@@ -334,26 +278,29 @@ body:not(.admin-mode) .admin-nav-dock {
 .admin-nav-dock__btn {
   flex: 1 1 0;
   min-width: 0;
-  padding: 12px 6px;
+  min-height: 48px;
+  padding: 8px 4px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--bg-card);
   color: var(--text);
   font-family: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 0;
   cursor: pointer;
-  line-height: 1.25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   -webkit-tap-highlight-color: transparent;
 }
 
-@media (min-width: 360px) {
-  .admin-nav-dock__btn {
-    font-size: 0.78rem;
-    padding: 12px 8px;
-  }
+/* SVG з currentColor — колір як у тексту кнопки (тема, активний стан, вихід) */
+.admin-nav-dock__svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
+  display: block;
+  color: inherit;
 }
 
 .admin-nav-dock__btn:hover {
@@ -366,9 +313,27 @@ body:not(.admin-mode) .admin-nav-dock {
   color: var(--accent);
 }
 
+.admin-nav-dock__btn--exit {
+  flex: 0 0 52px;
+  border-color: rgba(239, 68, 68, 0.45);
+  color: var(--error);
+}
+
+.admin-nav-dock__btn--exit:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.admin-nav-dock__btn--exit:active {
+  transform: scale(0.96);
+}
+
 body[data-bg-mode='light'] .admin-nav-dock {
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.08);
+}
+
+body[data-bg-mode='light'] .admin-nav-dock__btn--exit {
+  border-color: rgba(220, 38, 38, 0.35);
 }
 
 /* Сторінка «Важливо» (редагування нагадування) */
@@ -404,6 +369,50 @@ body[data-bg-mode='light'] .admin-nav-dock {
   font-size: 0.875rem;
   color: var(--text-muted);
   line-height: 1.45;
+}
+
+.important-page__current {
+  flex-shrink: 0;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+}
+
+body[data-bg-mode='light'] .important-page__current {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.important-page__current-empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.important-page__current-status {
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.important-page__current-status--ok {
+  color: var(--success);
+}
+
+.important-page__current-status--exp {
+  color: var(--time);
+}
+
+.important-page__current-body {
+  font-size: 0.9375rem;
+  color: var(--text);
+  line-height: 1.5;
+  word-break: break-word;
 }
 
 .important-page__editor {
@@ -1786,7 +1795,7 @@ body.admin-mode .lesson-card-swipe-wrap {
 }
 
 body.admin-mode .lesson-swipe-btn,
-body.admin-mode .admin-exit-btn {
+body.admin-mode .admin-nav-dock__btn {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }

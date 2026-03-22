@@ -1233,6 +1233,14 @@ let reminderHistory = [];
 let reminderFetchSettled = false;
 
 const REMINDER_SEEN_KEY = 'schedule_app_reminder_seen_ts';
+/** Узгоджено з REMINDER_PUBLIC_TTL_MS на сервері (GET /api/reminder) */
+const REMINDER_PUBLIC_TTL_MS = 24 * 60 * 60 * 1000;
+
+function isPublicReminderActive() {
+  if (!reminderText || !reminderText.trim()) return false;
+  if (!reminderUpdatedAt || reminderUpdatedAt <= 0) return false;
+  return Date.now() - reminderUpdatedAt < REMINDER_PUBLIC_TTL_MS;
+}
 
 function getReminderSeenTs() {
   try {
@@ -1270,7 +1278,7 @@ function fillReminderReadonlyBody(el, text) {
 
 function isReminderUnreadForUser() {
   if (adminMode) return false;
-  if (!reminderText || !reminderText.trim()) return false;
+  if (!isPublicReminderActive()) return false;
   if (!reminderUpdatedAt) return false;
   return reminderUpdatedAt > getReminderSeenTs();
 }
@@ -1571,7 +1579,7 @@ function syncAdminDockActive() {
   if (!adminMode) return;
   const dock = document.getElementById('admin-nav-dock');
   if (!dock) return;
-  dock.querySelectorAll('.admin-nav-dock__btn').forEach((b) => b.classList.remove('admin-nav-dock__btn--active'));
+  dock.querySelectorAll('.admin-nav-dock__btn[data-admin-nav]').forEach((b) => b.classList.remove('admin-nav-dock__btn--active'));
   if (isWeatherPageVisible()) return;
   let key = 'schedule';
   if (isBirthdaysPageVisible()) key = 'birthdays';
@@ -1612,7 +1620,31 @@ async function fetchAdminReminderFull() {
     if (Number.isFinite(ts) && ts > 0) reminderUpdatedAt = ts;
     reminderHistory = Array.isArray(data.history) ? data.history : [];
     renderImportantHistoryCards();
+    renderImportantCurrentDisplay();
   } catch (_) {}
+}
+
+/** Блок «збережений текст» на сторінці Важливо (поле вводу окремо очищається після збереження) */
+function renderImportantCurrentDisplay() {
+  const wrap = document.getElementById('important-current-display');
+  if (!wrap) return;
+  const raw = typeof reminderText === 'string' ? reminderText.trim() : '';
+  if (!raw) {
+    wrap.innerHTML =
+      '<p class="important-page__current-empty">Немає збереженого тексту. Наберіть нове повідомлення нижче та натисніть «Зберегти».</p>';
+    return;
+  }
+  const active = isPublicReminderActive();
+  const untilTs = reminderUpdatedAt + REMINDER_PUBLIC_TTL_MS;
+  const until =
+    reminderUpdatedAt > 0
+      ? new Date(untilTs).toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
+      : '—';
+  const status = active
+    ? `<p class="important-page__current-status important-page__current-status--ok">Для студентів активне до ${escapeHtml(until)}</p>`
+    : `<p class="important-page__current-status important-page__current-status--exp">Минуло 24 год з останнього збереження — на головному екрані студентам не показується. Текст нижче лише для перегляду.</p>`;
+  const body = escapeHtml(raw).replace(/\n/g, '<br>');
+  wrap.innerHTML = `${status}<div class="important-page__current-body">${body}</div>`;
 }
 
 function renderImportantHistoryCards() {
@@ -1659,10 +1691,8 @@ function showImportantPage() {
     window.scrollTo(0, 0);
   } catch (_) {}
   const ta = document.getElementById('important-editor-text');
-  if (ta) ta.value = reminderText;
-  fetchAdminReminderFull().then(() => {
-    if (ta) ta.value = reminderText;
-  });
+  if (ta) ta.value = '';
+  fetchAdminReminderFull();
   syncAdminDockActive();
 }
 
@@ -2445,7 +2475,7 @@ async function fetchReminderFromServer() {
 function syncReminderTrigger() {
   const btn = document.getElementById('reminder-trigger');
   if (!btn) return;
-  const hasText = !!(reminderText && reminderText.trim());
+  const hasText = !!(reminderText && reminderText.trim()) && isPublicReminderActive();
   btn.classList.remove('reminder-trigger--unread');
 
   /* Кнопка «Важливо» лише на панелі розкладу */
@@ -2455,10 +2485,10 @@ function syncReminderTrigger() {
     return;
   }
 
+  /* У режимі адміністратора кнопка не потрібна — редагування через нижню панель */
   if (adminMode) {
-    btn.hidden = false;
-    btn.removeAttribute('aria-hidden');
-    btn.setAttribute('aria-label', 'Редагувати нагадування для студентів');
+    btn.hidden = true;
+    btn.setAttribute('aria-hidden', 'true');
     return;
   }
 
@@ -2587,7 +2617,10 @@ function openReminderPopover() {
           const ts = Number(data.updatedAt);
           if (Number.isFinite(ts) && ts > 0) reminderUpdatedAt = ts;
           if (Array.isArray(data.history)) reminderHistory = data.history;
-          if (isImportantPageVisible()) renderImportantHistoryCards();
+          if (isImportantPageVisible()) {
+            renderImportantHistoryCards();
+            renderImportantCurrentDisplay();
+          }
           closeReminderPopover();
           syncReminderTrigger();
           showToast('Нагадування збережено');
@@ -2662,10 +2695,8 @@ function registerGlobalSwipeDismiss() {
 
 function syncAdminChrome() {
   document.body.classList.toggle('admin-mode', adminMode);
-  const strip = document.getElementById('admin-exit-strip');
   const banner = document.getElementById('admin-mode-banner');
   const dock = document.getElementById('admin-nav-dock');
-  if (strip) strip.hidden = !adminMode;
   if (banner) banner.hidden = !adminMode;
   if (dock) dock.hidden = !adminMode;
   const bap = document.getElementById('birthdays-admin-panel');
@@ -2689,6 +2720,7 @@ function exitAdminMode() {
   closeModals();
   closeAllLessonSwipes();
   syncAdminChrome();
+  fetchReminderFromServer();
   showToast('Режим редагування вимкнено');
   if (currentScheduleDate) loadSchedule(currentScheduleDate);
 }
@@ -3255,9 +3287,9 @@ if (versionSecretBtn) {
   });
 }
 
-const adminExitBtn = document.getElementById('admin-exit-btn');
-if (adminExitBtn) {
-  adminExitBtn.addEventListener('click', () => runAdminUiAction(() => exitAdminMode()));
+const adminNavExitBtn = document.getElementById('admin-nav-exit');
+if (adminNavExitBtn) {
+  adminNavExitBtn.addEventListener('click', () => runAdminUiAction(() => exitAdminMode()));
 }
 
 document.getElementById('admin-nav-schedule')?.addEventListener('click', () => {
@@ -3297,7 +3329,9 @@ document.getElementById('important-editor-save')?.addEventListener('click', asyn
       const ts = Number(data.updatedAt);
       if (Number.isFinite(ts) && ts > 0) reminderUpdatedAt = ts;
       if (Array.isArray(data.history)) reminderHistory = data.history;
+      ta.value = '';
       renderImportantHistoryCards();
+      renderImportantCurrentDisplay();
       syncReminderTrigger();
       showToast('Нагадування збережено');
     } else {
@@ -3314,7 +3348,8 @@ const reminderTrigger = document.getElementById('reminder-trigger');
 if (reminderTrigger) {
   reminderTrigger.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (!adminMode && (!reminderText || !reminderText.trim())) return;
+    if (adminMode) return;
+    if (!reminderText || !reminderText.trim() || !isPublicReminderActive()) return;
     openReminderPopover();
   });
 }
