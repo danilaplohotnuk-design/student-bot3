@@ -3917,6 +3917,36 @@ document.getElementById('attendance-journal-form')?.addEventListener('submit', a
   }
 });
 
+document.getElementById('attendance-journal-upload-trigger')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  document.getElementById('attendance-journal-upload-input')?.click();
+});
+
+document.getElementById('attendance-journal-upload-input')?.addEventListener('change', async (e) => {
+  const input = e.target;
+  const file = input && input.files && input.files[0];
+  if (!file || !adminMode || !storedAdminPassword) return;
+  try {
+    input.value = '';
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch('/api/admin/attendance/upload', {
+      method: 'POST',
+      headers: { 'x-admin-password': storedAdminPassword },
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : [], data);
+      showToast('Файл журналу збережено на сервері');
+    } else {
+      showToast(data.error || 'Не вдалося завантажити файл на сервер');
+    }
+  } catch (_) {
+    showToast('Помилка мережі');
+  }
+});
+
 document.getElementById('attendance-journal-download-btn')?.addEventListener('click', async () => {
   if (!adminMode || !storedAdminPassword) return;
   try {

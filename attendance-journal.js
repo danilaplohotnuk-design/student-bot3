@@ -13,6 +13,20 @@ const __dirname = path.dirname(__filename);
 
 export const ATTENDANCE_JOURNAL_FILENAME = 'ТБА-35 test.xlsx';
 
+/**
+ * Шлях до файлу журналу:
+ * - ATTENDANCE_JOURNAL_PATH — повний шлях до .xlsx
+ * - або ATTENDANCE_JOURNAL_DIR — каталог, у ньому зберігається «ТБА-35 test.xlsx»
+ * - інакше — поруч із index.js
+ */
+export function getResolvedJournalPath() {
+  const full = process.env.ATTENDANCE_JOURNAL_PATH?.trim();
+  if (full) return path.resolve(full);
+  const dir = process.env.ATTENDANCE_JOURNAL_DIR?.trim();
+  if (dir) return path.join(path.resolve(dir), ATTENDANCE_JOURNAL_FILENAME);
+  return path.join(__dirname, ATTENDANCE_JOURNAL_FILENAME);
+}
+
 /** Excel рядок 4 (індекс 0-based: 3) — дата / день */
 const DATE_ROW_INDEX = 3;
 /** Excel рядок 5 (індекс 4) — перший рядок студентів */
@@ -21,7 +35,7 @@ const FIRST_STUDENT_ROW_INDEX = 4;
 const NAME_COL_INDEX = 1;
 
 function getJournalPath() {
-  return path.join(__dirname, ATTENDANCE_JOURNAL_FILENAME);
+  return getResolvedJournalPath();
 }
 
 function pad2(n) {
@@ -125,11 +139,29 @@ function setCell(ws, r, c, v) {
   }
 }
 
+/** Зберегти .xlsx на сервер (після завантаження з адмінки) */
+export function saveJournalFileBuffer(buffer) {
+  if (!Buffer.isBuffer(buffer)) {
+    throw new Error('Некоректні дані файлу');
+  }
+  if (buffer.length < 64) {
+    throw new Error('Файл занадто малий');
+  }
+  try {
+    XLSX.read(buffer, { type: 'buffer' });
+  } catch {
+    throw new Error('Файл не є коректним Excel (.xlsx)');
+  }
+  const p = getJournalPath();
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, buffer);
+}
+
 export function loadJournalWorkbook() {
   const p = getJournalPath();
   if (!fs.existsSync(p)) {
     throw new Error(
-      'Файл журналу не знайдено. Покладіть «ТБА-35 test.xlsx» у корінь проєкту (поруч із index.js).',
+      'Файл журналу не знайдено. Завантажте «ТБА-35 test.xlsx» кнопкою «Відправити Excel на сервер» у журналі або покладіть файл у корінь проєкту / задайте ATTENDANCE_JOURNAL_PATH у змінних середовища.',
     );
   }
   const wb = XLSX.readFile(p, { cellDates: true });

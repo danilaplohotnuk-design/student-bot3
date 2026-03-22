@@ -340,13 +340,28 @@
           <div class="app-header-block__text">
             <h1 class="app-title">Журнал присутніх</h1>
             <p class="app-subtitle attendance-journal-page__subtitle">
-              Матриця як у групі ТБА-35: лист «бакалавр», колонка ПІБ, рядок дат — файл «ТБА-35 test.xlsx» поруч із сервером
+              Матриця як у групі ТБА-35: лист «бакалавр», колонка ПІБ, рядок дат. Якщо на сервері ще немає файлу — натисніть «Відправити Excel на сервер» і оберіть «ТБА-35 test.xlsx» з комп’ютера.
             </p>
           </div>
         </div>
       </header>
       <div class="attendance-journal-page__toolbar">
-        <button type="button" id="attendance-journal-download-btn" class="modal-btn modal-btn-secondary attendance-journal-page__download">
+        <input
+          type="file"
+          id="attendance-journal-upload-input"
+          class="attendance-journal-page__file-input"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+          aria-hidden="true"
+        />
+        <button
+          type="button"
+          id="attendance-journal-upload-trigger"
+          class="modal-btn modal-btn-primary attendance-journal-page__toolbar-btn"
+        >
+          Відправити Excel на сервер
+        </button>
+        <button type="button" id="attendance-journal-download-btn" class="modal-btn modal-btn-secondary attendance-journal-page__toolbar-btn">
           Завантажити Excel
         </button>
       </div>

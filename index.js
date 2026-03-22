@@ -2,6 +2,7 @@
 
 import fs from 'fs';
 import express from 'express';
+import multer from 'multer';
 import { Telegraf } from 'telegraf';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,6 +14,7 @@ import {
   readJournalRows,
   appendJournalRow,
   getJournalFileBuffer,
+  saveJournalFileBuffer,
   ATTENDANCE_JOURNAL_FILENAME,
   normalizeDateToIso,
   getMatrixDayData,
@@ -120,6 +122,11 @@ function writeReminderToDisk(text) {
 
 const app = express();
 app.set('trust proxy', 1);
+
+const attendanceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
 const PORT = process.env.PORT || 3000;
 
 // На хмарі (Render тощо) використовуємо RENDER_EXTERNAL_URL
@@ -407,6 +414,28 @@ app.post('/api/admin/attendance/row', requireAdmin, (req, res) => {
     res.status(500).json({ error: 'Не вдалося зберегти запис' });
   }
 });
+
+/** Завантажити .xlsx журналу на сервер (один раз або оновлення) */
+app.post(
+  '/api/admin/attendance/upload',
+  requireAdmin,
+  attendanceUpload.single('file'),
+  (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try {
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({ error: 'Потрібен файл .xlsx (поле file)' });
+      }
+      saveJournalFileBuffer(req.file.buffer);
+      const data = readJournalRows();
+      res.json({ ok: true, ...data });
+    } catch (err) {
+      const msg = err && err.message ? String(err.message) : String(err);
+      console.error('attendance upload:', err);
+      res.status(400).json({ error: msg });
+    }
+  },
+);
 
 app.get('/api/admin/attendance/download', requireAdmin, (req, res) => {
   try {
