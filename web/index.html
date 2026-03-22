@@ -13,10 +13,17 @@
   <div class="app-shell" id="app-shell">
     <div id="schedule-view" class="schedule-view">
     <header class="app-header">
-      <div class="app-header-inner">
-        <h1 class="app-title">Розклад</h1>
-        <p class="app-subtitle" id="date-label">Оберіть дату</p>
-      </div>
+      <button
+        type="button"
+        id="header-weather-btn"
+        class="app-header-btn"
+        aria-label="Погода на тиждень у Києві"
+      >
+        <span class="app-header-btn__inner">
+          <span class="app-title">Розклад</span>
+          <span class="app-subtitle" id="date-label">Оберіть дату</span>
+        </span>
+      </button>
     </header>
 
     <section class="date-section">
@@ -131,6 +138,19 @@
 
       <div id="birthdays-page-upcoming" class="birthdays-page__upcoming" hidden></div>
       <div id="birthdays-page-list" class="birthdays-page__list birthdays-list" role="list"></div>
+    </section>
+
+    <section id="weather-page" class="weather-page" hidden aria-label="Погода в Києві">
+      <header class="weather-page__header">
+        <button type="button" id="weather-back-btn" class="weather-page__back btn-bg" aria-label="Назад до розкладу">
+          ← Назад
+        </button>
+        <h1 class="weather-page__title">Погода в Києві</h1>
+        <p class="weather-page__subtitle">Прогноз на 7 днів (Open-Meteo)</p>
+      </header>
+      <div id="weather-page-body" class="weather-page__body">
+        <p class="weather-page__state" id="weather-page-state">Завантаження…</p>
+      </div>
     </section>
   </div>
 

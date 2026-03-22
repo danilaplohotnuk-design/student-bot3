@@ -1481,8 +1481,144 @@ function renderBirthdaysPageContent() {
   }
 }
 
-function birthdaysPageEscapeHandler(e) {
-  if (e.key === 'Escape' && isBirthdaysPageVisible()) hideBirthdaysPage();
+function isWeatherPageVisible() {
+  const p = document.getElementById('weather-page');
+  return Boolean(p && !p.hidden);
+}
+
+function scheduleSubpageEscapeHandler(e) {
+  if (e.key !== 'Escape') return;
+  if (isWeatherPageVisible()) {
+    hideWeatherPage();
+    return;
+  }
+  if (isBirthdaysPageVisible()) hideBirthdaysPage();
+}
+
+/** Київ — Open-Meteo WMO weathercode → короткий опис українською */
+const WMO_WEATHER_UK = {
+  0: 'Ясно',
+  1: 'Майже ясно',
+  2: 'Хмарно',
+  3: 'Похмуро',
+  45: 'Туман',
+  48: 'Туман з інеєм',
+  51: 'Мряка',
+  53: 'Мряка',
+  55: 'Мряка',
+  56: 'Морозна мряка',
+  57: 'Морозна мряка',
+  61: 'Дощ',
+  63: 'Дощ',
+  65: 'Сильний дощ',
+  66: 'Крижаний дощ',
+  67: 'Крижаний дощ',
+  71: 'Сніг',
+  73: 'Сніг',
+  75: 'Сильний сніг',
+  77: 'Сніжинки',
+  80: 'Зливи',
+  81: 'Зливи',
+  82: 'Сильні зливи',
+  85: 'Снігові зливи',
+  86: 'Снігові зливи',
+  95: 'Гроза',
+  96: 'Гроза з градом',
+  99: 'Гроза з градом',
+};
+
+function wmoWeatherLabel(code) {
+  const c = Number(code);
+  return WMO_WEATHER_UK[c] || 'Невідомо';
+}
+
+const KYIV_LAT = 50.4501;
+const KYIV_LON = 30.5234;
+
+async function loadWeatherKyiv() {
+  const body = document.getElementById('weather-page-body');
+  if (!body) return;
+  body.innerHTML =
+    '<p class="weather-page__state" id="weather-page-state">Завантаження…</p>';
+  try {
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+    url.searchParams.set('latitude', String(KYIV_LAT));
+    url.searchParams.set('longitude', String(KYIV_LON));
+    url.searchParams.set(
+      'daily',
+      'weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max',
+    );
+    url.searchParams.set('timezone', 'Europe/Kyiv');
+    url.searchParams.set('forecast_days', '7');
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(String(res.status));
+    const data = await res.json();
+    const daily = data?.daily;
+    const times = daily?.time;
+    if (!Array.isArray(times) || !times.length) throw new Error('no daily');
+    const codes = daily.weathercode || [];
+    const tMax = daily.temperature_2m_max || [];
+    const tMin = daily.temperature_2m_min || [];
+    const precip = daily.precipitation_probability_max || [];
+
+    body.innerHTML = '';
+    times.forEach((dayStr, i) => {
+      const d = new Date(`${dayStr}T12:00:00`);
+      const dateLine = d.toLocaleDateString('uk-UA', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      });
+      const code = codes[i];
+      const desc = wmoWeatherLabel(code);
+      const hi = tMax[i];
+      const lo = tMin[i];
+      const pr = precip[i];
+      const hiT = Number.isFinite(Number(hi)) ? `${Math.round(Number(hi))}°` : '—';
+      const loT = Number.isFinite(Number(lo)) ? `${Math.round(Number(lo))}°` : '—';
+      let rainLine = '';
+      if (Number.isFinite(Number(pr))) {
+        rainLine = `<div class="weather-day__rain">Ймовірність опадів: ${Math.round(Number(pr))}%</div>`;
+      }
+
+      const card = document.createElement('div');
+      card.className = 'weather-day';
+      card.innerHTML = `
+        <div class="weather-day__date">${escapeHtml(dateLine)}</div>
+        <div class="weather-day__desc">${escapeHtml(desc)}</div>
+        <div class="weather-day__temps">${escapeHtml(hiT)} / ${escapeHtml(loT)} <span class="weather-day__temps-note">(макс / мін)</span></div>
+        ${rainLine}
+      `;
+      body.appendChild(card);
+    });
+  } catch (_) {
+    body.innerHTML = `<p class="weather-page__state weather-page__state--error" id="weather-page-state">Не вдалося завантажити прогноз. Перевірте інтернет.</p>`;
+  }
+}
+
+function hideWeatherPage() {
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  const sv = document.getElementById('schedule-view');
+  const wp = document.getElementById('weather-page');
+  if (sv) sv.hidden = false;
+  if (wp) wp.hidden = true;
+}
+
+async function showWeatherPage() {
+  const sv = document.getElementById('schedule-view');
+  const wp = document.getElementById('weather-page');
+  if (!sv || !wp) return;
+  closeReminderPopover();
+  document.getElementById('schedule-modal-overlay')?.remove();
+  if (isBirthdaysPageVisible()) hideBirthdaysPage();
+  sv.hidden = true;
+  wp.hidden = false;
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+  await loadWeatherKyiv();
 }
 
 function showBirthdaysPage() {
@@ -1492,20 +1628,21 @@ function showBirthdaysPage() {
   closeReminderPopover();
   const overlay = document.getElementById('schedule-modal-overlay');
   if (overlay) overlay.remove();
+  if (isWeatherPageVisible()) hideWeatherPage();
   sv.hidden = true;
   bp.hidden = false;
   const bap = document.getElementById('birthdays-admin-panel');
   if (bap) bap.hidden = !adminMode;
   renderBirthdaysPageContent();
-  window.removeEventListener('keydown', birthdaysPageEscapeHandler);
-  window.addEventListener('keydown', birthdaysPageEscapeHandler);
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
   try {
     window.scrollTo(0, 0);
   } catch (_) {}
 }
 
 function hideBirthdaysPage() {
-  window.removeEventListener('keydown', birthdaysPageEscapeHandler);
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
   const sv = document.getElementById('schedule-view');
   const bp = document.getElementById('birthdays-page');
   if (sv) sv.hidden = false;
@@ -2359,6 +2496,9 @@ if (birthdaysBtn) {
 }
 
 document.getElementById('birthdays-back-btn')?.addEventListener('click', () => hideBirthdaysPage());
+
+document.getElementById('header-weather-btn')?.addEventListener('click', () => showWeatherPage());
+document.getElementById('weather-back-btn')?.addEventListener('click', () => hideWeatherPage());
 
 document.getElementById('birthdays-admin-add')?.addEventListener('click', () => birthdaysAdminSubmitAdd());
 

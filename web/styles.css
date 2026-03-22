@@ -306,8 +306,38 @@ body:not(.admin-mode) .admin-exit-strip {
   margin-bottom: 20px;
 }
 
-.app-header-inner {
+.app-header-btn {
+  display: block;
+  width: 100%;
+  margin: 0;
   padding: 4px 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+.app-header-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app-header-btn:focus {
+  outline: none;
+}
+
+.app-header-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.app-header-btn__inner {
+  display: block;
+  text-align: left;
 }
 
 .app-title {
@@ -316,6 +346,7 @@ body:not(.admin-mode) .admin-exit-strip {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text);
+  display: block;
 }
 
 .app-subtitle {
@@ -323,6 +354,112 @@ body:not(.admin-mode) .admin-exit-strip {
   font-size: 0.9375rem;
   font-weight: 500;
   color: var(--text-muted);
+  display: block;
+}
+
+/* Сторінка погоди (Київ) */
+.weather-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
+.weather-page[hidden] {
+  display: none !important;
+}
+
+.weather-page__header {
+  flex-shrink: 0;
+  margin-bottom: 16px;
+}
+
+.weather-page__back {
+  align-self: flex-start;
+  margin-bottom: 12px;
+}
+
+.weather-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.weather-page__subtitle {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+}
+
+.weather-page__body {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.weather-page__state {
+  margin: 0;
+  padding: 16px 8px;
+  text-align: center;
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+}
+
+.weather-page__state--error {
+  color: var(--error);
+}
+
+.weather-day {
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-glass);
+}
+
+.weather-day__date {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.weather-day__desc {
+  font-size: 0.875rem;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.weather-day__temps {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--time);
+}
+
+.weather-day__temps-note {
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.weather-day__rain {
+  margin-top: 6px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+body[data-bg-mode='light'] .app-header-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 /* Панель «сьогодні / завтра ДН» на головному екрані */
@@ -2120,6 +2257,7 @@ body[data-bg-mode="light"] .btn-bg {
   box-shadow: var(--glass-edge);
   color: var(--text);
 }
+
 body[data-bg-mode="light"] .lesson-card {
   border: 1px solid rgba(0, 0, 0, 0.06);
   box-shadow: var(--shadow-glass), var(--glass-edge);
