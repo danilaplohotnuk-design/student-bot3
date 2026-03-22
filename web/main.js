@@ -1554,6 +1554,12 @@ function isWeatherPageVisible() {
   return Boolean(p && !p.hidden);
 }
 
+/** Головний екран з розкладом (не погода / не ДН) */
+function isScheduleViewVisible() {
+  const sv = document.getElementById('schedule-view');
+  return Boolean(sv && !sv.hidden);
+}
+
 function scheduleSubpageEscapeHandler(e) {
   if (e.key !== 'Escape') return;
   if (isWeatherPageVisible()) {
@@ -2157,6 +2163,7 @@ function hideWeatherPage() {
   const wp = document.getElementById('weather-page');
   if (sv) sv.hidden = false;
   if (wp) wp.hidden = true;
+  syncReminderTrigger();
 }
 
 async function showWeatherPage() {
@@ -2168,6 +2175,7 @@ async function showWeatherPage() {
   if (isBirthdaysPageVisible()) hideBirthdaysPage();
   sv.hidden = true;
   wp.hidden = false;
+  syncReminderTrigger();
   window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
   window.addEventListener('keydown', scheduleSubpageEscapeHandler);
   try {
@@ -2183,9 +2191,15 @@ function showBirthdaysPage() {
   closeReminderPopover();
   const overlay = document.getElementById('schedule-modal-overlay');
   if (overlay) overlay.remove();
-  if (isWeatherPageVisible()) hideWeatherPage();
+  /* Не викликати hideWeatherPage() — він тимчасово показує schedule-view; лише ховаємо погоду */
+  if (isWeatherPageVisible()) {
+    const wp = document.getElementById('weather-page');
+    if (wp) wp.hidden = true;
+    window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  }
   sv.hidden = true;
   bp.hidden = false;
+  syncReminderTrigger();
   const bap = document.getElementById('birthdays-admin-panel');
   if (bap) bap.hidden = !adminMode;
   renderBirthdaysPageContent();
@@ -2203,6 +2217,7 @@ function hideBirthdaysPage() {
   if (sv) sv.hidden = false;
   if (bp) bp.hidden = true;
   updateBirthdayHomeNotice();
+  syncReminderTrigger();
 }
 
 function closeModals() {
@@ -2313,6 +2328,13 @@ function syncReminderTrigger() {
   if (!btn) return;
   const hasText = !!(reminderText && reminderText.trim());
   btn.classList.remove('reminder-trigger--unread');
+
+  /* Кнопка «Важливо» лише на панелі розкладу */
+  if (!isScheduleViewVisible()) {
+    btn.hidden = true;
+    btn.setAttribute('aria-hidden', 'true');
+    return;
+  }
 
   if (adminMode) {
     btn.hidden = false;
