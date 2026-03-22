@@ -50,6 +50,20 @@ const todayBtn = document.getElementById('today-btn');
 const tomorrowBtn = document.getElementById('tomorrow-btn');
 const scheduleContainer = document.getElementById('schedule');
 
+/** Порядкова анімація появи карток пар (падіння + відскок) */
+let scheduleCardEnterIndex = 0;
+const LESSON_ENTER_STAGGER_MS = 72;
+
+function stampLessonCardEnter(el) {
+  if (!el) return;
+  try {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  } catch (_) {}
+  el.style.setProperty('--lesson-enter-delay', `${scheduleCardEnterIndex * LESSON_ENTER_STAGGER_MS}ms`);
+  scheduleCardEnterIndex += 1;
+  el.classList.add('lesson-card--enter');
+}
+
 let currentScheduleDate = ''; // дата відкритого розкладу (для форми зміни пари)
 
 // Захист від випадкового натискання: подвійний тап для Zoom
@@ -953,6 +967,7 @@ function appendEmptySlotCard(date, slot) {
   });
 
   scheduleContainer.appendChild(card);
+  stampLessonCardEnter(card);
 }
 
 function attachLessonZoomDoubleTap(cardEl) {
@@ -1027,6 +1042,7 @@ function appendLessonCard(date, lesson) {
     card.className = 'lesson-card lesson-card--clickable';
     fillLessonCardContent(card);
     scheduleContainer.appendChild(card);
+    stampLessonCardEnter(card);
     attachLessonZoomDoubleTap(card);
     return;
   }
@@ -1083,12 +1099,14 @@ function appendLessonCard(date, lesson) {
   wrap.appendChild(actions);
   wrap.appendChild(front);
   scheduleContainer.appendChild(wrap);
+  stampLessonCardEnter(wrap);
 }
 
 function renderSchedule(date, lessons) {
   setHeaderTodayDateLabel();
   currentScheduleDate = date || '';
   scheduleContainer.innerHTML = '';
+  scheduleCardEnterIndex = 0;
 
   const list = lessons || [];
   const byStart = new Map();

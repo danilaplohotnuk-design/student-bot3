@@ -727,7 +727,7 @@ body[data-bg-mode="light"] .birthdays-list {
 }
 
 .btn-quick:active {
-  transform: scale(0.98);
+  transform: translateY(0) scale(0.98);
 }
 
 .btn-quick:hover {
@@ -747,6 +747,45 @@ body[data-bg-mode="light"] .birthdays-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow: visible;
+}
+
+/* Картки пар: по черзі «падають» зверху й підстрибують на місце */
+@keyframes lesson-card-enter-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-42px) scale(0.96, 0.98);
+  }
+  52% {
+    opacity: 1;
+    transform: translateY(12px) scale(1.02, 1.01);
+  }
+  68% {
+    transform: translateY(-6px) scale(0.99, 1);
+  }
+  82% {
+    transform: translateY(3px) scale(1.005, 1);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lesson-card--enter.lesson-card,
+.lesson-card--enter.lesson-card-swipe-wrap {
+  animation: lesson-card-enter-drop 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--lesson-enter-delay, 0ms);
+  transform-origin: 50% 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lesson-card--enter.lesson-card,
+  .lesson-card--enter.lesson-card-swipe-wrap {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .schedule-main-spacer {
