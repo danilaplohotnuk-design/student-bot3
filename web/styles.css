@@ -159,7 +159,8 @@ body {
 }
 
 /* Водяний знак «ТБА» — по центру екрана, повернутий 90° */
-/* lvh / 50lvh: не прив’язуємо до динамічного вікна (клавіатура, панель браузера), щоб не «з’їжджало» на мобільних */
+/* На мобільних позицію й розмір фіксує initTbaWatermarkViewportStable() у main.js (visualViewport). */
+/* lvh — лише запасний варіант, коли немає visualViewport */
 .app-tba-watermark {
   display: none;
   box-sizing: border-box;

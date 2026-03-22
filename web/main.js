@@ -11,6 +11,74 @@ function escapeHtml(s) {
 if (tg) {
   tg.expand();
   tg.enableClosingConfirmation();
+  if (typeof tg.ready === 'function') tg.ready();
+}
+
+/**
+ * Водяний знак «ТБА»: не зміщувати при відкритті клавіатури (iOS / Telegram WebView).
+ * lvh/vh у CSS недостатньо — fixed прив’язаний до visual viewport. Тримаємо стабільну
+ * висоту layout і компенсуємо visualViewport.offsetTop/Left.
+ */
+function initTbaWatermarkViewportStable() {
+  const el = document.querySelector('.app-tba-watermark');
+  const vv = window.visualViewport;
+  if (!el || !vv) return;
+
+  let stableLayoutH = Math.max(
+    window.innerHeight || 0,
+    document.documentElement.clientHeight || 0,
+  );
+
+  function apply() {
+    const inner = window.innerHeight || 0;
+    const client = document.documentElement.clientHeight || 0;
+    const cur = Math.max(inner, client);
+    if (cur > stableLayoutH + 1) stableLayoutH = cur;
+
+    const h = stableLayoutH;
+    if (h < 1) return;
+
+    el.style.top = `${h * 0.5}px`;
+
+    const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const minFs = 8.5 * rootPx;
+    const maxFs = 56 * rootPx;
+    const fs = Math.min(maxFs, Math.max(minFs, h / 2.1));
+    el.style.fontSize = `${fs}px`;
+
+    const ox = vv.offsetLeft || 0;
+    const oy = vv.offsetTop || 0;
+    el.style.transform = `translate(${ox}px, ${oy}px) translate(-50%, -50%) rotate(90deg)`;
+  }
+
+  function onVV() {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(apply);
+    else apply();
+  }
+
+  vv.addEventListener('resize', onVV, { passive: true });
+  vv.addEventListener('scroll', onVV, { passive: true });
+  window.addEventListener('resize', onVV, { passive: true });
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+      stableLayoutH = Math.max(
+        window.innerHeight || 0,
+        document.documentElement.clientHeight || 0,
+      );
+      apply();
+    }, 280);
+  });
+
+  apply();
+  setTimeout(apply, 50);
+  setTimeout(apply, 200);
+  setTimeout(apply, 500);
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initTbaWatermarkViewportStable);
+} else {
+  initTbaWatermarkViewportStable();
 }
 
 // Підрахунок відкриття додатку (не залежить від GET /; cron не виконує JS)
