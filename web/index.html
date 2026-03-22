@@ -13,17 +13,12 @@
   <script>
     (function () {
       try {
-        var tg = window.Telegram && window.Telegram.WebApp;
-        var inTelegram = !!(
-          tg &&
-          (String(tg.initData || '').length > 0 ||
-            (tg.initDataUnsafe && tg.initDataUnsafe.user))
-        );
         var mobile = /Mobi|Android|iPhone|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(
           navigator.userAgent || ''
         );
         var meta = document.getElementById('viewport-meta');
-        if (meta && mobile && !inTelegram) {
+        /* Усі мобільні (у т.ч. Telegram): без pinch/double-tap zoom сторінки */
+        if (meta && mobile) {
           meta.setAttribute(
             'content',
             'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'

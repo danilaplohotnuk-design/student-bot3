@@ -91,6 +91,12 @@ body {
   overflow-x: hidden;
 }
 
+/* Мобільний viewport без zoom: не роздувати текст (iOS) */
+html.web-mobile-browser {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 .app-shell {
   position: relative;
   z-index: 1;
@@ -956,14 +962,14 @@ body[data-bg-mode='light'] .important-page__textarea {
   display: block;
 }
 
-/* Сторінка погоди */
+/* Сторінка погоди: без окремого flex-скролу — прокрутка всього вікна */
 .weather-page {
   position: relative;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
   width: 100%;
+  min-height: 0;
 }
 
 .weather-page[hidden] {
@@ -1321,14 +1327,13 @@ body[data-bg-mode='light'] .weather-search-card:hover {
 }
 
 .weather-page__body {
-  flex: 1;
-  min-height: 120px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  /* місце зверху, щоб анімація «падіння» першої картки не обрізалась у скролі */
+  /* Відступ зверху під анімацію першої картки (без внутрішнього overflow) */
   padding-top: 44px;
   box-sizing: border-box;
 }
