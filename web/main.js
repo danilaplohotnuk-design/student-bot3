@@ -2082,12 +2082,18 @@ function showImportantPage() {
   syncUserNavDockActive();
 }
 
-function renderAttendanceJournalTable(rows) {
+function renderAttendanceJournalTable(rows, meta) {
   const wrap = document.getElementById('attendance-journal-table-wrap');
   if (!wrap) return;
+  if (meta && meta.format === 'matrix') {
+    const sheet = escapeHtml(meta.sheetName || '');
+    const n = Number.isFinite(Number(meta.studentCount)) ? Number(meta.studentCount) : 0;
+    wrap.innerHTML = `<p class="attendance-journal-page__empty" id="attendance-journal-empty">Матричний журнал (лист «${sheet}»): у списку <strong>${n}</strong> студентів (колонка ПІБ). Відмітки «п»/«н» пишуться в клітинки на перетині рядка студента та колонки з датою (рядок 4 у Excel).</p>`;
+    return;
+  }
   if (!rows.length) {
     wrap.innerHTML =
-      '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Поки немає записів. Додайте перший рядок вище.</p>';
+      '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Поки немає даних. Завантажте файл журналу або відкрийте пошук по даті вище.</p>';
     return;
   }
   const last = rows.slice(-40).reverse();
@@ -2118,7 +2124,7 @@ async function loadAttendanceJournalData() {
     if (!res.ok) throw new Error('fail');
     const data = await res.json();
     const rows = Array.isArray(data.rows) ? data.rows : [];
-    renderAttendanceJournalTable(rows);
+    renderAttendanceJournalTable(rows, data);
   } catch (_) {
     wrap.innerHTML =
       '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Не вдалося завантажити журнал.</p>';
@@ -2128,7 +2134,7 @@ async function loadAttendanceJournalData() {
 /** Кеш GET /api/admin/attendance/day */
 let attendanceJournalDayCache = null;
 
-/** Контекст модалки: { dateIso, pairLabel, names, title, isUnpaired } */
+/** Контекст модалки: { dateIso, pairLabel, columnIndex, names, title, isUnpaired } */
 let attendanceJournalPairModalCtx = null;
 
 function closeAttendanceJournalPairModal() {
@@ -2149,7 +2155,7 @@ function renderAttendanceJournalPairsList(data) {
   }
   if (!data.pairs.length) {
     wrap.innerHTML =
-      '<p class="attendance-journal-page__empty">На цю дату в розкладу немає пар.</p>';
+      '<p class="attendance-journal-page__empty">У рядку дат (рядок 4 у Excel) немає цієї дати — перевірте файл або оберіть іншу дату.</p>';
     wrap.hidden = false;
     return;
   }
@@ -2157,13 +2163,18 @@ function renderAttendanceJournalPairsList(data) {
   const parts = [];
   data.pairs.forEach((p, i) => {
     const n = p.names && p.names.length ? p.names.length : 0;
+    const label = String(p.pairLabel || '').trim();
+    const short =
+      label.length > 100 ? `${escapeHtml(label.slice(0, 100))}…` : escapeHtml(label || 'Заняття');
+    const colHint =
+      typeof p.columnIndex === 'number'
+        ? `Кол. ${p.columnIndex + 1}`
+        : 'Заняття';
     parts.push(
       `<button type="button" class="attendance-journal-pair-chip" data-pair-index="${i}">
-        <span class="attendance-journal-pair-chip__time">${escapeHtml(p.startTime)}–${escapeHtml(
-        p.endTime,
-      )}</span>
-        ${escapeHtml(p.title)}${p.teacher ? ` (${escapeHtml(p.teacher)})` : ''}
-        <span class="attendance-journal-pair-chip--muted"> — у журналі: ${n}</span>
+        <span class="attendance-journal-pair-chip__time">${escapeHtml(colHint)}</span>
+        ${short}
+        <span class="attendance-journal-pair-chip--muted"> — студентів у списку: ${n}</span>
       </button>`,
     );
   });
@@ -2243,12 +2254,15 @@ async function refreshAttendanceJournalModalAfterSave() {
       nextNames = Array.isArray(data.unpaired) ? data.unpaired : [];
       title = 'Записи без колонки «Пара»';
     } else {
-      const match = data.pairs.find((p) => p.pairLabel === pairLabel);
+      const colIdx = prev.columnIndex;
+      const match = data.pairs.find((p) => p.columnIndex === colIdx);
       nextNames = match && Array.isArray(match.names) ? match.names : [];
+      if (match && match.pairLabel) title = match.pairLabel;
     }
     openAttendanceJournalPairModal({
       dateIso,
-      pairLabel,
+      pairLabel: prev.pairLabel,
+      columnIndex: prev.columnIndex,
       names: nextNames,
       title,
       isUnpaired,
@@ -2258,7 +2272,11 @@ async function refreshAttendanceJournalModalAfterSave() {
 
 async function onAttendanceJournalToggle(fullName, present) {
   if (!attendanceJournalPairModalCtx || !storedAdminPassword) return;
-  const { dateIso, pairLabel } = attendanceJournalPairModalCtx;
+  const { dateIso, columnIndex } = attendanceJournalPairModalCtx;
+  if (columnIndex == null || Number.isNaN(Number(columnIndex))) {
+    showToast('Немає колонки заняття');
+    return;
+  }
   try {
     const res = await fetch('/api/admin/attendance/set', {
       method: 'POST',
@@ -2268,14 +2286,14 @@ async function onAttendanceJournalToggle(fullName, present) {
       },
       body: JSON.stringify({
         dateIso,
-        pairLabel: pairLabel || '',
+        columnIndex,
         fullName,
         present,
       }),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
-      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : []);
+      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : [], data);
       await refreshAttendanceJournalModalAfterSave();
       showToast('Збережено в Excel');
     } else {
@@ -2321,7 +2339,9 @@ async function loadAttendanceJournalDay() {
     attendanceJournalDayCache = data;
     renderAttendanceJournalPairsList(data);
     if (msgEl) {
-      msgEl.textContent = `Знайдено пар: ${data.pairs.length}. Рядків у журналі за цю дату: ${data.rowsForDay.length}.`;
+      const sheet = data.sheetName || '—';
+      const studs = Array.isArray(data.students) ? data.students.length : 0;
+      msgEl.textContent = `Лист «${sheet}»: занять на цю дату в таблиці — ${data.pairs.length}. Студентів у колонці ПІБ — ${studs}.`;
       msgEl.className = 'attendance-journal-page__msg attendance-journal-page__msg--ok';
       msgEl.hidden = false;
     }
@@ -3881,7 +3901,7 @@ document.getElementById('attendance-journal-form')?.addEventListener('submit', a
         msg.className = 'attendance-journal-page__msg attendance-journal-page__msg--ok';
         msg.hidden = false;
       }
-      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : []);
+      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : [], data);
       showToast('Запис збережено в журналі');
     } else if (msg) {
       msg.textContent = data.error || 'Не вдалося зберегти';
@@ -3945,13 +3965,14 @@ document.getElementById('attendance-journal-pairs-wrap')?.addEventListener('clic
     });
     return;
   }
-  if (idxBtn) {
+    if (idxBtn) {
     const i = parseInt(idxBtn.getAttribute('data-pair-index'), 10);
     const p = attendanceJournalDayCache.pairs[i];
     if (!p) return;
     openAttendanceJournalPairModal({
       dateIso: attendanceJournalDayCache.date,
       pairLabel: p.pairLabel,
+      columnIndex: p.columnIndex,
       names: p.names || [],
       title: p.pairLabel,
       isUnpaired: false,

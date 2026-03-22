@@ -339,7 +339,9 @@
         <div class="app-header-block">
           <div class="app-header-block__text">
             <h1 class="app-title">Журнал присутніх</h1>
-            <p class="app-subtitle attendance-journal-page__subtitle">Записи зберігаються у файлі «ТБА-35 test.xlsx»</p>
+            <p class="app-subtitle attendance-journal-page__subtitle">
+              Матриця як у групі ТБА-35: лист «бакалавр», колонка ПІБ, рядок дат — файл «ТБА-35 test.xlsx» поруч із сервером
+            </p>
           </div>
         </div>
       </header>
@@ -352,7 +354,7 @@
       <section class="attendance-journal-page__smart" aria-labelledby="attendance-journal-smart-heading">
         <h2 id="attendance-journal-smart-heading" class="attendance-journal-page__smart-title">Розумний пошук по даті</h2>
         <p class="attendance-journal-page__smart-hint">
-          Оберіть дату — з’являться пари з розкладу. У журналі дата може бути записана через «/», «.» або «,» — пошук це враховує.
+          Оберіть дату — з Excel (рядок 4) знайдуться всі колонки з цією датою (формати дд.мм.рррр, дд/мм/рррр тощо). Кожна колонка — окреме заняття (назва зверху). У клітинках зберігаються «п» або «н».
         </p>
         <div class="attendance-journal-page__smart-row">
           <label class="attendance-journal-page__label" for="attendance-journal-smart-date">Дата</label>
@@ -377,7 +379,9 @@
           </button>
           <h3 id="attendance-journal-pair-dialog-title" class="attendance-journal-pair-dialog__title"></h3>
           <div id="attendance-journal-pair-list" class="attendance-journal-pair-list"></div>
-          <p id="attendance-journal-pair-empty" class="attendance-journal-page__empty" hidden>Немає записів у журналі для цієї пари. Додайте рядок у формі нижче, вказавши ту саму назву пари в полі «Пара».</p>
+          <p id="attendance-journal-pair-empty" class="attendance-journal-page__empty" hidden>
+            У списку студентів (колонка ПІБ) нікого не знайдено — перевірте файл або рядок з ПІБ. Можна додати відмітку через форму нижче.
+          </p>
           <div class="attendance-journal-pair-add">
             <label class="attendance-journal-page__label" for="attendance-journal-pair-new-name">Швидко додати ПІБ для цієї пари</label>
             <div class="attendance-journal-pair-add__row">
@@ -401,13 +405,13 @@
           <input type="date" id="attendance-journal-date" class="attendance-journal-page__input" required />
         </div>
         <div class="attendance-journal-page__row">
-          <label class="attendance-journal-page__label" for="attendance-journal-pair">Пара (як у розкладу, необовʼязково)</label>
+          <label class="attendance-journal-page__label" for="attendance-journal-pair">Заняття (необовʼязково, якщо кілька колонок на одну дату)</label>
           <input
             type="text"
             id="attendance-journal-pair"
             class="attendance-journal-page__input"
             maxlength="400"
-            placeholder="Напр.: 09:00–10:20 — Майстерність актора"
+            placeholder="Частина назви з рядків над колонкою (дисципліна / викладач)"
           />
         </div>
         <div class="attendance-journal-page__row">
@@ -448,7 +452,7 @@
         <p id="attendance-journal-form-msg" class="attendance-journal-page__msg" hidden role="status"></p>
       </form>
       <section class="attendance-journal-page__list-block" aria-labelledby="attendance-journal-list-heading">
-        <h2 id="attendance-journal-list-heading" class="attendance-journal-page__list-title">Останні записи</h2>
+        <h2 id="attendance-journal-list-heading" class="attendance-journal-page__list-title">Стан файлу журналу</h2>
         <div id="attendance-journal-table-wrap" class="attendance-journal-page__table-wrap">
           <p id="attendance-journal-empty" class="attendance-journal-page__empty">Завантаження…</p>
         </div>

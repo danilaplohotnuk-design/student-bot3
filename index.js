@@ -15,11 +15,8 @@ import {
   getJournalFileBuffer,
   ATTENDANCE_JOURNAL_FILENAME,
   normalizeDateToIso,
-  formatPairLabel,
-  getRowsForIsoDate,
-  getNamesForPair,
-  getUnpairedNames,
-  upsertAttendanceByPair,
+  getMatrixDayData,
+  writeMatrixAttendance,
 } from './attendance-journal.js';
 
 dotenv.config();
@@ -426,7 +423,7 @@ app.get('/api/admin/attendance/download', requireAdmin, (req, res) => {
   }
 });
 
-/** Дата + пари з розкладу + рядки журналу за цей день (для розумного пошуку) */
+/** Дата + колонки з Excel (рядок дат) + студенти з відмітками «п»/«н» */
 app.get('/api/admin/attendance/day', requireAdmin, (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
@@ -435,44 +432,33 @@ app.get('/api/admin/attendance/day', requireAdmin, (req, res) => {
     if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
       return res.status(400).json({ error: 'Потрібна дата YYYY-MM-DD' });
     }
-    const lessons = getScheduleByDate(iso);
-    const rowsForDay = getRowsForIsoDate(iso);
-    const unpaired = getUnpairedNames(rowsForDay);
-    const pairs = lessons.map((lesson) => {
-      const pairLabel = formatPairLabel(lesson);
-      return {
-        pairLabel,
-        startTime: lesson.startTime,
-        endTime: lesson.endTime,
-        title: lesson.title,
-        teacher: lesson.teacher || '',
-        building: lesson.building,
-        room: lesson.room,
-        names: getNamesForPair(rowsForDay, pairLabel, lesson.title),
-      };
-    });
-    res.json({
-      ok: true,
-      date: iso,
-      pairs,
-      rowsForDay,
-      unpaired,
-    });
+    const data = getMatrixDayData(iso);
+    res.json({ ok: true, ...data });
   } catch (err) {
+    const msg = err && err.message ? String(err.message) : String(err);
     console.error('attendance day:', err);
+    if (msg.includes('не знайдено')) {
+      return res.status(404).json({ error: msg });
+    }
     res.status(500).json({ error: 'Не вдалося зчитати журнал' });
   }
 });
 
-/** Відмітити присутність (п/н) за датою, парою та ПІБ */
+/** Відмітити «п»/«н» у клітинці матриці журналу */
 app.post('/api/admin/attendance/set', requireAdmin, (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
-    const data = upsertAttendanceByPair(req.body || {});
+    const data = writeMatrixAttendance(req.body || {});
     res.json({ ok: true, ...data });
   } catch (err) {
     const msg = err && err.message ? String(err.message) : String(err);
-    if (msg.includes('Потрібні') || msg.includes('Некоректна') || msg.includes('Потрібне')) {
+    if (
+      msg.includes('Потрібні') ||
+      msg.includes('Некоректн') ||
+      msg.includes('Потрібне') ||
+      msg.includes('не знайдено') ||
+      msg.includes('не збігається')
+    ) {
       return res.status(400).json({ error: msg });
     }
     console.error('attendance set:', err);
