@@ -2088,7 +2088,7 @@ function renderAttendanceJournalTable(rows, meta) {
   if (meta && meta.format === 'matrix') {
     const sheet = escapeHtml(meta.sheetName || '');
     const n = Number.isFinite(Number(meta.studentCount)) ? Number(meta.studentCount) : 0;
-    wrap.innerHTML = `<p class="attendance-journal-page__empty" id="attendance-journal-empty">Матричний журнал (лист «${sheet}»): у списку <strong>${n}</strong> студентів (колонка ПІБ). Відмітки «п»/«н» пишуться в клітинки на перетині рядка студента та колонки з датою (рядок 4 у Excel).</p>`;
+    wrap.innerHTML = `<p class="attendance-journal-page__empty" id="attendance-journal-empty">Матричний журнал (лист «${sheet}»): у списку <strong>${n}</strong> студентів (колонка ПІБ). Дати в рядку 4 (AZ…MM, дд.мм.рррр); відмітки «п»/«н» — на перетині рядка студента та колонки заняття.</p>`;
     return;
   }
   if (!rows.length) {
@@ -2155,7 +2155,7 @@ function renderAttendanceJournalPairsList(data) {
   }
   if (!data.pairs.length) {
     wrap.innerHTML =
-      '<p class="attendance-journal-page__empty">У рядку дат (рядок 4 у Excel) немає цієї дати — перевірте файл або оберіть іншу дату.</p>';
+      '<p class="attendance-journal-page__empty">У рядку 4 (колонки AZ…MM, формат дд.мм.рррр) немає цієї дати — перевірте рік у календарі / у файлі або оберіть інший день.</p>';
     wrap.hidden = false;
     return;
   }

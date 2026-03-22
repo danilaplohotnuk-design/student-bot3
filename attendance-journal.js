@@ -1,7 +1,8 @@
 /**
  * Журнал присутніх — файл «ТБА-35 test.xlsx» (матриця як у шаблоні групи).
  * Лист за замовчуванням: «бакалавр» (ATTENDANCE_JOURNAL_SHEET у .env).
- * Колонка B — ПІБ (з рядка 5), рядок 4 Excel — дні/дати, на перетині — «п» / «н».
+ * Колонка B — ПІБ (за замовч. з рядка 5). Рядок дат — рядок 4 Excel, колонки AZ…MM,
+ * формат дати в клітинках дд.мм.рррр (див. ATTENDANCE_JOURNAL_* у .env).
  */
 import fs from 'fs';
 import path from 'path';
@@ -27,12 +28,44 @@ export function getResolvedJournalPath() {
   return path.join(__dirname, ATTENDANCE_JOURNAL_FILENAME);
 }
 
-/** Excel рядок 4 (індекс 0-based: 3) — дата / день */
-const DATE_ROW_INDEX = 3;
-/** Excel рядок 5 (індекс 4) — перший рядок студентів */
-const FIRST_STUDENT_ROW_INDEX = 4;
 /** Колонка B — ПІБ */
 const NAME_COL_INDEX = 1;
+
+/** Рядок Excel з датами дд.мм.рррр (1-based). За замовч. 4 — колонки AZ…MM. */
+function getDateRowIndex() {
+  const n = parseInt(process.env.ATTENDANCE_JOURNAL_DATE_ROW, 10);
+  if (Number.isFinite(n) && n >= 1 && n <= 200) return n - 1;
+  return 3; // Excel рядок 4
+}
+
+/** Перший рядок з ПІБ (1-based). За замовч. 5. */
+function getFirstStudentRowIndex() {
+  const n = parseInt(process.env.ATTENDANCE_JOURNAL_FIRST_STUDENT_ROW, 10);
+  if (Number.isFinite(n) && n >= 2 && n <= 500) return n - 1;
+  return 4; // Excel рядок 5
+}
+
+/**
+ * Діапазон колонок з парами (AZ:MM за замовч.).
+ * ATTENDANCE_JOURNAL_COL_RANGE=AZ:MM
+ */
+function getScanColumnBounds() {
+  const raw = process.env.ATTENDANCE_JOURNAL_COL_RANGE?.trim();
+  if (raw && raw.includes(':')) {
+    const [a, b] = raw.split(':').map((s) => s.trim().toUpperCase());
+    try {
+      const minC = XLSX.utils.decode_col(a);
+      const maxC = XLSX.utils.decode_col(b);
+      if (Number.isFinite(minC) && Number.isFinite(maxC) && minC <= maxC) {
+        return { minC, maxC };
+      }
+    } catch (_) {}
+  }
+  return {
+    minC: XLSX.utils.decode_col('AZ'),
+    maxC: XLSX.utils.decode_col('MM'),
+  };
+}
 
 function getJournalPath() {
   return getResolvedJournalPath();
@@ -177,8 +210,9 @@ export function getTargetSheetName(wb) {
 
 /** Заголовок заняття над колонкою (рядки 1–3 Excel) */
 function buildClassLabel(ws, colIndex) {
+  const dateRow = getDateRowIndex();
   const bits = [];
-  for (let r = 0; r <= 2; r++) {
+  for (let r = 0; r < dateRow; r++) {
     const v = getCellValue(ws, r, colIndex);
     if (v) bits.push(v);
     if (colIndex > 0) {
@@ -195,7 +229,8 @@ export function listMatrixStudents(ws) {
   if (!ref) return [];
   const range = XLSX.utils.decode_range(ref);
   const out = [];
-  for (let r = FIRST_STUDENT_ROW_INDEX; r <= range.e.r; r++) {
+  const firstStudent = getFirstStudentRowIndex();
+  for (let r = firstStudent; r <= range.e.r; r++) {
     const name = String(getCellValue(ws, r, NAME_COL_INDEX)).trim();
     if (!name) continue;
     if (/^№\s*з\/п|^прізвище/i.test(name)) continue;
@@ -205,17 +240,27 @@ export function listMatrixStudents(ws) {
   return out;
 }
 
-/** Усі колонки, де в рядку дат збігається дата */
-export function findDateColumns(ws, isoDate) {
-  const ref = ws['!ref'];
-  if (!ref) return [];
-  const range = XLSX.utils.decode_range(ref);
+function isoSameDayMonth(a, b) {
+  const pa = String(a || '').split('-');
+  const pb = String(b || '').split('-');
+  if (pa.length !== 3 || pb.length !== 3) return false;
+  return pa[1] === pb[1] && pa[2] === pb[2];
+}
+
+/** Усі колонки, де в рядку дат збігається дата (повна або день+місяць, якщо рік у файлі інший) */
+function findDateColumnsInner(ws, isoDate, dayMonthOnly) {
+  const { minC, maxC } = getScanColumnBounds();
+  const dateRow = getDateRowIndex();
   const seen = new Set();
   const out = [];
-  for (let c = range.s.c; c <= range.e.c; c++) {
-    const raw = getCellValue(ws, DATE_ROW_INDEX, c);
+  for (let c = minC; c <= maxC; c++) {
+    const raw = getCellValue(ws, dateRow, c);
     const iso = normalizeDateToIso(raw);
-    if (iso === isoDate && !seen.has(c)) {
+    let match = iso === isoDate;
+    if (!match && dayMonthOnly && iso) {
+      match = isoSameDayMonth(iso, isoDate);
+    }
+    if (match && !seen.has(c)) {
       seen.add(c);
       out.push({
         columnIndex: c,
@@ -226,17 +271,24 @@ export function findDateColumns(ws, isoDate) {
   return out;
 }
 
+export function findDateColumns(ws, isoDate) {
+  const full = findDateColumnsInner(ws, isoDate, false);
+  if (full.length) return full;
+  return findDateColumnsInner(ws, isoDate, true);
+}
+
 function findStudentRowByName(ws, name) {
   const target = normKey(name);
   const ref = ws['!ref'];
   if (!ref) return -1;
   const range = XLSX.utils.decode_range(ref);
-  for (let r = FIRST_STUDENT_ROW_INDEX; r <= range.e.r; r++) {
+  const firstStudent = getFirstStudentRowIndex();
+  for (let r = firstStudent; r <= range.e.r; r++) {
     const cellName = String(getCellValue(ws, r, NAME_COL_INDEX)).trim();
     if (!cellName) continue;
     if (normKey(cellName) === target) return r;
   }
-  for (let r = FIRST_STUDENT_ROW_INDEX; r <= range.e.r; r++) {
+  for (let r = firstStudent; r <= range.e.r; r++) {
     const cellName = String(getCellValue(ws, r, NAME_COL_INDEX)).trim();
     if (!cellName) continue;
     if (cellName.includes(name.trim()) || name.trim().includes(cellName)) return r;
@@ -295,8 +347,10 @@ export function writeMatrixAttendance({ dateIso, columnIndex, fullName, present 
   const ws = wb.Sheets[sheetName];
   if (!ws) throw new Error('Аркуш не знайдено');
 
-  const cellDate = normalizeDateToIso(getCellValue(ws, DATE_ROW_INDEX, col));
-  if (cellDate !== dIso) {
+  const cellRaw = getCellValue(ws, getDateRowIndex(), col);
+  const cellDate = normalizeDateToIso(cellRaw);
+  const dateOk = cellDate === dIso || (cellDate && isoSameDayMonth(cellDate, dIso));
+  if (!dateOk) {
     throw new Error('Дата в обраній колонці не збігається з обраною датою');
   }
 
