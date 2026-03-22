@@ -146,6 +146,23 @@ function stampWeatherCardEnter(el) {
   el.classList.add('weather-day--enter');
 }
 
+/** Порядкова анімація появи карток «Важливо» (як у пар) */
+let importantCardEnterIndex = 0;
+const IMPORTANT_ENTER_STAGGER_MS = 72;
+
+/** variant: 'student-current' | 'admin-current' | 'history' */
+function stampImportantCardEnter(el, variant) {
+  if (!el) return;
+  try {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  } catch (_) {}
+  el.style.setProperty('--important-enter-delay', `${importantCardEnterIndex * IMPORTANT_ENTER_STAGGER_MS}ms`);
+  importantCardEnterIndex += 1;
+  if (variant === 'history') el.classList.add('important-history-card--enter');
+  else if (variant === 'student-current') el.classList.add('student-important-current--enter');
+  else if (variant === 'admin-current') el.classList.add('important-page__current--enter');
+}
+
 let currentScheduleDate = ''; // дата відкритого розкладу (для форми зміни пари)
 
 // Захист від випадкового натискання: подвійний тап для Zoom
@@ -1446,22 +1463,21 @@ function renderStudentImportantPage() {
   const historyBlock = document.getElementById('student-important-history-block');
   if (!wrap || !listEl) return;
 
+  importantCardEnterIndex = 0;
+
   const hasActive = !!(reminderText && reminderText.trim()) && isPublicReminderActive();
   if (hasActive) {
-    const untilTs = reminderUpdatedAt + REMINDER_PUBLIC_TTL_MS;
-    const until =
-      reminderUpdatedAt > 0
-        ? new Date(untilTs).toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
-        : '—';
     wrap.innerHTML = `<div class="student-important-current student-important-current--active">
-      <p class="student-important-page__status">Активне для перегляду на головному екрані до ${escapeHtml(until)}</p>
+      <p class="student-important-page__status">Активне повідомлення зникне за 24 години</p>
       <div class="student-important-page__body" id="student-important-current-body"></div>
     </div>`;
     fillReminderReadonlyBody(document.getElementById('student-important-current-body'), reminderText);
+    stampImportantCardEnter(wrap.querySelector('.student-important-current'), 'student-current');
   } else {
     wrap.innerHTML = `<div class="student-important-current student-important-current--empty">
       <p class="student-important-page__empty">Немає активного важливого оголошення зараз (або минув 24-годинний термін показу).</p>
     </div>`;
+    stampImportantCardEnter(wrap.querySelector('.student-important-current'), 'student-current');
   }
 
   const hist = Array.isArray(reminderPublicHistory) ? reminderPublicHistory : [];
@@ -1488,6 +1504,7 @@ function renderStudentImportantPage() {
       return `<article class="important-history-card"><p class="important-history-card__meta">${escapeHtml(dateStr)}</p><p class="important-history-card__text">${escapeHtml(body).replace(/\n/g, '<br>')}</p></article>`;
     })
     .join('');
+  listEl.querySelectorAll('.important-history-card').forEach((card) => stampImportantCardEnter(card, 'history'));
 }
 
 async function showStudentImportantPage() {
@@ -1959,8 +1976,9 @@ async function fetchAdminReminderFull() {
     const ts = Number(data.updatedAt);
     if (Number.isFinite(ts) && ts > 0) reminderUpdatedAt = ts;
     reminderHistory = Array.isArray(data.history) ? data.history : [];
-    renderImportantHistoryCards();
+    importantCardEnterIndex = 0;
     renderImportantCurrentDisplay();
+    renderImportantHistoryCards();
   } catch (_) {}
 }
 
@@ -1972,6 +1990,7 @@ function renderImportantCurrentDisplay() {
   if (!raw) {
     wrap.innerHTML =
       '<p class="important-page__current-empty">Немає збереженого тексту. Наберіть нове повідомлення нижче та натисніть «Зберегти».</p>';
+    stampImportantCardEnter(wrap, 'admin-current');
     return;
   }
   const active = isPublicReminderActive();
@@ -1985,6 +2004,7 @@ function renderImportantCurrentDisplay() {
     : `<p class="important-page__current-status important-page__current-status--exp">Минуло 24 год з останнього збереження — на головному екрані студентам не показується. Текст нижче лише для перегляду.</p>`;
   const body = escapeHtml(raw).replace(/\n/g, '<br>');
   wrap.innerHTML = `${status}<div class="important-page__current-body">${body}</div>`;
+  stampImportantCardEnter(wrap, 'admin-current');
 }
 
 function renderImportantHistoryCards() {
@@ -2006,6 +2026,7 @@ function renderImportantHistoryCards() {
       return `<article class="important-history-card"><p class="important-history-card__meta">${escapeHtml(dateStr)}</p><p class="important-history-card__text">${escapeHtml(body).replace(/\n/g, '<br>')}</p></article>`;
     })
     .join('');
+  el.querySelectorAll('.important-history-card').forEach((card) => stampImportantCardEnter(card, 'history'));
 }
 
 function showImportantPage() {
@@ -2561,6 +2582,9 @@ function initWeatherPageControls() {
           weatherSearchPickedThisSession = true;
           hideWeatherSearchResults();
           input.value = '';
+          try {
+            input.blur();
+          } catch (_) {}
           writeWeatherLocation({
             lat: r.latitude,
             lon: r.longitude,
@@ -3496,8 +3520,9 @@ document.getElementById('important-editor-save')?.addEventListener('click', asyn
       if (Number.isFinite(ts) && ts > 0) reminderUpdatedAt = ts;
       if (Array.isArray(data.history)) reminderHistory = data.history;
       ta.value = '';
-      renderImportantHistoryCards();
+      importantCardEnterIndex = 0;
       renderImportantCurrentDisplay();
+      renderImportantHistoryCards();
       syncReminderTrigger();
       showToast('Нагадування збережено');
     } else {
