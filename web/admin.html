@@ -49,7 +49,13 @@
     <section id="admin-stats" class="admin-section" style="display: none;">
       <h2>Статистика відвідувань</h2>
       <p id="admin-stats-error" class="admin-message error" style="display: none;"></p>
-      <p class="admin-stat-hint">Рахуємо відкриття додатку (після завантаження сторінки). Запити cron до <code>/api/health</code> не входять у заходи та унікальних.</p>
+      <p class="admin-stat-hint">
+        Рахуємо відкриття додатку (після завантаження сторінки). Не враховуємо User-Agent з підрядками
+        <code>cron-job</code>, <code>console.cron</code>; додаткові — змінна <code>STATS_EXCLUDE_UA_SUBSTR</code>.
+        Свій відбиток не рахувати: GET <code>/api/admin/stats/self-fingerprint</code> (з паролем) → додай у
+        <code>STATS_EXCLUDE_FINGERPRINTS</code> на сервері. Ping до <code>/api/health</code> з тим самим cron-UA не
+        збільшує лічильник ping.
+      </p>
       <div class="admin-stats-grid">
         <div class="admin-stat-card">
           <div id="stat-page-visits" class="admin-stat-value">—</div>

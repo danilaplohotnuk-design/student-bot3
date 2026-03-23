@@ -3,6 +3,9 @@ node_modules/
 *.log
 .DS_Store
 
+# Локальна статистика відвідувань (на сервері — у DATA_DIR/stats.json)
+stats.json
+
 # Журнал присутніх (Excel; оновлюється з адмінки)
 ТБА-35 test.xlsx
 ТБА-35 test (2).xlsx

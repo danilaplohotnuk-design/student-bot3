@@ -28,7 +28,7 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=0.0.47" />
+  <link rel="stylesheet" href="styles.css?v=0.0.50" />
 </head>
 <body>
   <div class="app-tba-watermark" aria-hidden="true">ТБА</div>
@@ -67,7 +67,13 @@
     </div>
 
     <div id="admin-mode-banner" class="admin-mode-banner" hidden>
-      <p class="admin-mode-banner-title">Режим редагування</p>
+      <div class="admin-mode-banner__top">
+        <p class="admin-mode-banner-title">Режим редагування</p>
+        <div id="admin-visit-stats" class="admin-visit-stats" hidden>
+          <span class="admin-visit-stats__label">Унікальні відвідувачі</span>
+          <span id="admin-visit-stats-unique" class="admin-visit-stats__value" aria-live="polite">—</span>
+        </div>
+      </div>
       <div class="admin-mode-banner-rule" aria-hidden="true"></div>
     </div>
 
@@ -675,6 +681,6 @@
     </nav>
   </div>
 
-  <script src="main.js?v=0.0.47"></script>
+  <script src="main.js?v=0.0.50"></script>
 </body>
 </html>

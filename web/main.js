@@ -1490,6 +1490,9 @@ function showToast(message) {
 let storedAdminPassword = '';
 /** Після 8 тапів по версії та вірного пароля — свайп на парах і «Додати пару» на вільних слотах */
 let adminMode = false;
+/** Оновлення плашки «Унікальні відвідувачі» в режимі адміна */
+let adminVisitStatsIntervalId = null;
+
 /** Текст нагадування з GET /api/reminder */
 let reminderText = '';
 /** Час останньої зміни на сервері (ms) — для непрочитаного */
@@ -3393,6 +3396,33 @@ function registerGlobalSwipeDismiss() {
   );
 }
 
+async function loadAdminVisitStatsBar() {
+  const valEl = document.getElementById('admin-visit-stats-unique');
+  const wrap = document.getElementById('admin-visit-stats');
+  if (!valEl || !wrap) return;
+  if (!adminMode || !storedAdminPassword) {
+    wrap.hidden = true;
+    return;
+  }
+  try {
+    const res = await fetch('/api/admin/stats', {
+      headers: { 'x-admin-password': storedAdminPassword },
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      valEl.textContent = '—';
+      wrap.hidden = false;
+      return;
+    }
+    const data = await res.json();
+    valEl.textContent = String(Number(data.uniqueVisitors) || 0);
+    wrap.hidden = false;
+  } catch (_) {
+    valEl.textContent = '—';
+    wrap.hidden = false;
+  }
+}
+
 function syncAdminChrome() {
   document.body.classList.toggle('admin-mode', adminMode);
   const banner = document.getElementById('admin-mode-banner');
@@ -3404,6 +3434,17 @@ function syncAdminChrome() {
   const bap = document.getElementById('birthdays-admin-panel');
   if (bap) bap.hidden = !adminMode;
   if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
+  if (adminVisitStatsIntervalId) {
+    clearInterval(adminVisitStatsIntervalId);
+    adminVisitStatsIntervalId = null;
+  }
+  if (adminMode) {
+    loadAdminVisitStatsBar();
+    adminVisitStatsIntervalId = setInterval(loadAdminVisitStatsBar, 90_000);
+  } else {
+    const w = document.getElementById('admin-visit-stats');
+    if (w) w.hidden = true;
+  }
   syncReminderTrigger();
   syncAdminDockActive();
   syncUserNavDockActive();
@@ -3969,6 +4010,7 @@ document.addEventListener('visibilitychange', () => {
     setHeaderTodayDateLabel();
     updateBirthdayHomeNotice();
     if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
+    if (adminMode) loadAdminVisitStatsBar();
   }
 });
 

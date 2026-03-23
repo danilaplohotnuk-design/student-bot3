@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { getScheduleByDate, schedule } from './schedule.js';
 import { getZoomLink } from './zoom-links.js';
-import { recordPageVisit, recordHealthPing, getStats } from './stats.js';
+import { recordPageVisit, recordHealthPing, getStats, fingerprint } from './stats.js';
 import {
   readJournalRows,
   getJournalFileBuffer,
@@ -179,7 +179,7 @@ app.get('/api/version', (req, res) => {
 
 // GET /api/health — для cron-job.org (keep-alive / перевірка доступності)
 app.get('/api/health', (req, res) => {
-  recordHealthPing();
+  recordHealthPing(req);
   res.status(200).json({
     ok: true,
     version: VERSION_INFO.version,
@@ -293,6 +293,12 @@ app.post('/api/admin/check', requireAdmin, (req, res) => {
 // Статистика відвідувань (заходи на головну; окремо — ping cron до /api/health)
 app.get('/api/admin/stats', requireAdmin, (req, res) => {
   res.json(getStats());
+});
+
+/** Відбиток поточного клієнта — додай у Render → STATS_EXCLUDE_FINGERPRINTS=..., щоб не рахувати свої заходи */
+app.get('/api/admin/stats/self-fingerprint', requireAdmin, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ fingerprint: fingerprint(req) });
 });
 
 // Додати пару
