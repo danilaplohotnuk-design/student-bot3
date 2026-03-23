@@ -8,6 +8,65 @@ function escapeHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
+/** Унікальний ключ для подвійного натискання по посиланнях у тексті «Важливо» */
+let reminderLinkTapSeq = 0;
+function nextReminderLinkKey() {
+  reminderLinkTapSeq += 1;
+  return `reminder-link-${reminderLinkTapSeq}`;
+}
+
+const REMINDER_URL_RE = /(https?:\/\/[^\s<]+)/gi;
+
+/** Розбити рядок на текст + span.reminder-inline-link (для innerHTML) */
+function formatReminderSingleLineHtml(line) {
+  const re = new RegExp(REMINDER_URL_RE.source, 'gi');
+  let out = '';
+  let last = 0;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    if (m.index > last) out += escapeHtml(line.slice(last, m.index));
+    const full = m[0];
+    const openUrl = full.replace(/[.,;:!?)]+$/g, '');
+    const lk = nextReminderLinkKey();
+    out += `<span class="reminder-inline-link" role="button" tabindex="0" data-url="${escapeHtml(openUrl)}" data-link-key="${escapeHtml(lk)}">${escapeHtml(full)}</span>`;
+    last = m.index + m[0].length;
+  }
+  if (last < line.length) out += escapeHtml(line.slice(last));
+  return out;
+}
+
+/** Увесь текст з переносами рядків → HTML з клікабельними посиланнями */
+function formatReminderHtmlWithLinks(raw) {
+  const lines = String(raw).split(/\r?\n/);
+  return lines.map((line) => formatReminderSingleLineHtml(line)).join('<br>');
+}
+
+/** Заповнити DOM-абзаци з посиланнями (студентська сторінка) */
+function appendLineIntoParagraphWithLinks(p, line) {
+  const re = new RegExp(REMINDER_URL_RE.source, 'gi');
+  let last = 0;
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    if (m.index > last) {
+      p.appendChild(document.createTextNode(line.slice(last, m.index)));
+    }
+    const full = m[0];
+    const openUrl = full.replace(/[.,;:!?)]+$/g, '');
+    const span = document.createElement('span');
+    span.className = 'reminder-inline-link';
+    span.setAttribute('role', 'button');
+    span.tabIndex = 0;
+    span.dataset.url = openUrl;
+    span.dataset.linkKey = nextReminderLinkKey();
+    span.textContent = full;
+    p.appendChild(span);
+    last = m.index + m[0].length;
+  }
+  if (last < line.length) {
+    p.appendChild(document.createTextNode(line.slice(last)));
+  }
+}
+
 if (tg) {
   tg.expand();
   tg.enableClosingConfirmation();
@@ -672,6 +731,17 @@ function isBgSettingsPageVisible() {
   return Boolean(p && !p.hidden);
 }
 
+function isLinksPageVisible() {
+  const p = document.getElementById('links-page');
+  return Boolean(p && !p.hidden);
+}
+
+/** Приховати «Корисні посилання» при переході на інший екран */
+function hideLinksPageLayer() {
+  const lp = document.getElementById('links-page');
+  if (lp) lp.hidden = true;
+}
+
 function refreshBackgroundFormFromStorage() {
   const stored = getStoredBackground();
   bgFormNewFileDataUrl = null;
@@ -797,6 +867,50 @@ function hideBackgroundSettingsPage() {
   syncUserNavDockActive();
 }
 
+function hideLinksPage() {
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  const lp = document.getElementById('links-page');
+  const sp = document.getElementById('settings-page');
+  const sv = document.getElementById('schedule-view');
+  if (lp) lp.hidden = true;
+  if (sp) sp.hidden = false;
+  if (sv) sv.hidden = true;
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  syncReminderTrigger();
+  syncUserNavDockActive();
+}
+
+function showLinksPage() {
+  if (adminMode) return;
+  closeModals();
+  closeReminderPopover();
+  const sv = document.getElementById('schedule-view');
+  const wp = document.getElementById('weather-page');
+  const bp = document.getElementById('birthdays-page');
+  const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
+  const lp = document.getElementById('links-page');
+  if (!sv || !sp || !lp) return;
+  hideAttendanceJournalPage();
+  if (wp) wp.hidden = true;
+  if (bp) bp.hidden = true;
+  if (ip) ip.hidden = true;
+  if (sip) sip.hidden = true;
+  if (bgp) bgp.hidden = true;
+  sp.hidden = true;
+  sv.hidden = true;
+  lp.hidden = false;
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+  syncReminderTrigger();
+  syncUserNavDockActive();
+}
+
 function showBackgroundSettingsPage() {
   if (adminMode) return;
   closeModals();
@@ -810,6 +924,7 @@ function showBackgroundSettingsPage() {
   const sip = document.getElementById('student-important-page');
   if (!sv || !sp || !bgp) return;
   hideAttendanceJournalPage();
+  hideLinksPageLayer();
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
   if (ip) ip.hidden = true;
@@ -1390,6 +1505,15 @@ const REMINDER_SEEN_KEY = 'schedule_app_reminder_seen_ts';
 /** Узгоджено з REMINDER_PUBLIC_TTL_MS на сервері (GET /api/reminder) */
 const REMINDER_PUBLIC_TTL_MS = 24 * 60 * 60 * 1000;
 
+/** Знімок для порівняння після GET /api/reminder (уникаємо повторного рендеру й подвійної анімації) */
+function snapshotReminderPublicState() {
+  return JSON.stringify({
+    t: reminderText,
+    u: reminderUpdatedAt,
+    h: reminderPublicHistory,
+  });
+}
+
 function isPublicReminderActive() {
   if (!reminderText || !reminderText.trim()) return false;
   if (!reminderUpdatedAt || reminderUpdatedAt <= 0) return false;
@@ -1413,7 +1537,7 @@ function markReminderSeen() {
   syncUnreadDot();
 }
 
-/** Кожен рядок тексту — окремий абзац (новий рядок у редакторі = новий блок) */
+/** Кожен рядок тексту — окремий абзац (новий рядок у редакторі = новий блок); http(s) — подвійний тап для відкриття */
 function fillReminderReadonlyBody(el, text) {
   if (!el) return;
   el.textContent = '';
@@ -1425,7 +1549,7 @@ function fillReminderReadonlyBody(el, text) {
       p.classList.add('reminder-readonly-para--empty');
       p.textContent = '\u00A0';
     } else {
-      p.textContent = line;
+      appendLineIntoParagraphWithLinks(p, line);
     }
     el.appendChild(p);
   });
@@ -1474,7 +1598,7 @@ function renderStudentImportantPage() {
   if (hasActive) {
     wrap.innerHTML = `<div class="student-important-current student-important-current--active">
       <p class="student-important-page__status">Активне повідомлення зникне за 24 години</p>
-      <div class="student-important-page__body" id="student-important-current-body"></div>
+      <div class="student-important-page__body reminder-readonly" id="student-important-current-body"></div>
     </div>`;
     fillReminderReadonlyBody(document.getElementById('student-important-current-body'), reminderText);
     stampImportantCardEnter(wrap.querySelector('.student-important-current'), 'student-current');
@@ -1506,7 +1630,7 @@ function renderStudentImportantPage() {
           ? d.toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
           : '—';
       const body = String(h.text || '').trim() || '—';
-      return `<article class="important-history-card"><p class="important-history-card__meta">${escapeHtml(dateStr)}</p><p class="important-history-card__text">${escapeHtml(body).replace(/\n/g, '<br>')}</p></article>`;
+      return `<article class="important-history-card"><p class="important-history-card__meta">${escapeHtml(dateStr)}</p><p class="important-history-card__text">${formatReminderHtmlWithLinks(body)}</p></article>`;
     })
     .join('');
   listEl.querySelectorAll('.important-history-card').forEach((card) => stampImportantCardEnter(card, 'history'));
@@ -1525,6 +1649,7 @@ function showStudentImportantPage() {
   const sip = document.getElementById('student-important-page');
   if (!sv || !sip) return;
   hideAttendanceJournalPage();
+  hideLinksPageLayer();
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
   if (ip) ip.hidden = true;
@@ -1544,8 +1669,15 @@ function showStudentImportantPage() {
   } catch (_) {}
   syncUserNavDockActive();
   // Оновлення з сервера в фоні — без блокування перемикання
+  const beforePublic = snapshotReminderPublicState();
   fetchReminderFromServer().then(() => {
     if (!isStudentImportantPageVisible()) return;
+    // Якщо дані ті самі — не перерендерюємо (інакше анімація «Важливо» грає двічі)
+    if (snapshotReminderPublicState() === beforePublic) {
+      syncReminderTrigger();
+      syncUnreadDot();
+      return;
+    }
     renderStudentImportantPage();
     markReminderSeen();
     syncReminderTrigger();
@@ -1866,6 +1998,7 @@ function navigateUserToSchedule() {
   closeReminderPopover();
   document.getElementById('schedule-modal-overlay')?.remove();
   hideAttendanceJournalPage();
+  hideLinksPageLayer();
   const wp = document.getElementById('weather-page');
   const bp = document.getElementById('birthdays-page');
   const ip = document.getElementById('important-page');
@@ -1898,6 +2031,7 @@ function showSettingsPage() {
   const sip = document.getElementById('student-important-page');
   if (!sv || !sp) return;
   hideAttendanceJournalPage();
+  hideLinksPageLayer();
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
   if (ip) ip.hidden = true;
@@ -1922,6 +2056,7 @@ function hideSettingsPage() {
   const sip = document.getElementById('student-important-page');
   if (bgp) bgp.hidden = true;
   if (sip) sip.hidden = true;
+  hideLinksPageLayer();
   if (sv) sv.hidden = false;
   if (sp) sp.hidden = true;
   syncReminderTrigger();
@@ -1936,7 +2071,7 @@ function syncUserNavDockActive() {
   /** @type {string | null} */
   let key = 'schedule';
   if (isWeatherPageVisible()) key = 'weather';
-  else if (isSettingsPageVisible() || isBgSettingsPageVisible()) key = 'settings';
+  else if (isSettingsPageVisible() || isBgSettingsPageVisible() || isLinksPageVisible()) key = 'settings';
   else if (isStudentImportantPageVisible()) key = 'important';
   else if (isBirthdaysPageVisible()) key = null;
   else if (isScheduleViewVisible()) key = 'schedule';
@@ -1970,6 +2105,7 @@ function navigateAdminToSchedule() {
   closeReminderPopover();
   document.getElementById('schedule-modal-overlay')?.remove();
   hideAttendanceJournalPage();
+  hideLinksPageLayer();
   const wp = document.getElementById('weather-page');
   const bp = document.getElementById('birthdays-page');
   const ip = document.getElementById('important-page');
@@ -2065,7 +2201,7 @@ function renderImportantCurrentDisplay() {
   const status = active
     ? `<p class="important-page__current-status important-page__current-status--ok">Для студентів активне до ${escapeHtml(until)}</p>`
     : `<p class="important-page__current-status important-page__current-status--exp">Минуло 24 год з останнього збереження — на головному екрані студентам не показується. Текст нижче лише для перегляду.</p>`;
-  const body = escapeHtml(raw).replace(/\n/g, '<br>');
+  const body = formatReminderHtmlWithLinks(raw);
   wrap.innerHTML = `${status}<div class="important-page__current-body">${body}</div>`;
   stampImportantCardEnter(wrap, 'admin-current');
 }
@@ -2091,7 +2227,7 @@ function renderImportantHistoryCards() {
           <p class="important-history-card__meta">${escapeHtml(dateStr)}</p>
           <button type="button" class="important-history-card__del" data-history-index="${i}" title="Видалити запис" aria-label="Видалити запис з історії">×</button>
         </div>
-        <p class="important-history-card__text">${escapeHtml(body).replace(/\n/g, '<br>')}</p>
+        <p class="important-history-card__text">${formatReminderHtmlWithLinks(body)}</p>
       </article>`;
     })
     .join('');
@@ -2111,6 +2247,7 @@ function showImportantPage() {
   const sip = document.getElementById('student-important-page');
   if (!sv || !ip) return;
   hideAttendanceJournalPage();
+  hideLinksPageLayer();
   if (sp) sp.hidden = true;
   if (bgp) bgp.hidden = true;
   if (sip) sip.hidden = true;
@@ -2391,6 +2528,7 @@ async function showAttendanceJournalPage() {
   const sip = document.getElementById('student-important-page');
   const ajp = document.getElementById('attendance-journal-page');
   if (!sv || !ajp) return;
+  hideLinksPageLayer();
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
   if (ip) ip.hidden = true;
@@ -2432,6 +2570,11 @@ function scheduleSubpageEscapeHandler(e) {
       return;
     }
     hideWeatherPage();
+    return;
+  }
+  if (isLinksPageVisible()) {
+    if (!adminMode) hideLinksPage();
+    e.preventDefault();
     return;
   }
   if (isBgSettingsPageVisible()) {
@@ -3081,6 +3224,7 @@ async function showWeatherPage() {
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
   hideAttendanceJournalPage();
+  hideLinksPageLayer();
   if (ip) ip.hidden = true;
   if (sp) sp.hidden = true;
   if (bgp) bgp.hidden = true;
@@ -3111,6 +3255,7 @@ function showBirthdaysPage() {
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
   hideAttendanceJournalPage();
+  hideLinksPageLayer();
   if (ip) ip.hidden = true;
   if (sp) sp.hidden = true;
   if (bgp) bgp.hidden = true;
@@ -3758,6 +3903,40 @@ async function openOrCopyZoomLink(card) {
   }
 }
 
+let usefulLinkPendingKey = null;
+let usefulLinkPendingTimer = null;
+
+function openExternalUsefulLink(url) {
+  let opened = false;
+  if (typeof tg !== 'undefined' && tg && tg.openLink) {
+    try {
+      tg.openLink(url);
+      opened = true;
+    } catch (_) {}
+  }
+  if (!opened) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
+/** Подвійне натискання на картці корисного посилання (як Zoom) */
+function onUsefulLinkCardClick(url, key) {
+  if (usefulLinkPendingKey === key && usefulLinkPendingTimer !== null) {
+    clearTimeout(usefulLinkPendingTimer);
+    usefulLinkPendingTimer = null;
+    usefulLinkPendingKey = null;
+    openExternalUsefulLink(url);
+    return;
+  }
+  if (usefulLinkPendingTimer) clearTimeout(usefulLinkPendingTimer);
+  usefulLinkPendingKey = key;
+  showToast('Натисніть ще раз для переходу за посиланням');
+  usefulLinkPendingTimer = setTimeout(() => {
+    usefulLinkPendingTimer = null;
+    usefulLinkPendingKey = null;
+  }, ZOOM_DOUBLE_TAP_MS);
+}
+
 dateInput.addEventListener('change', () => {
   if (dateInput.value) loadSchedule(dateInput.value);
 });
@@ -3796,6 +3975,30 @@ document.addEventListener('visibilitychange', () => {
 document.getElementById('settings-open-bg')?.addEventListener('click', () => showBackgroundSettingsPage());
 
 document.getElementById('bg-settings-back-btn')?.addEventListener('click', () => hideBackgroundSettingsPage());
+
+document.getElementById('settings-open-links')?.addEventListener('click', () => showLinksPage());
+
+document.getElementById('links-back-btn')?.addEventListener('click', () => hideLinksPage());
+
+document.getElementById('links-page')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.useful-link-card');
+  if (!btn) return;
+  const url = btn.dataset.url;
+  const key = btn.dataset.linkKey;
+  if (!url || !key) return;
+  onUsefulLinkCardClick(url, key);
+});
+
+document.body.addEventListener('click', (e) => {
+  const span = e.target.closest('.reminder-inline-link');
+  if (!span) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const url = span.dataset.url;
+  const key = span.dataset.linkKey;
+  if (!url || !key) return;
+  onUsefulLinkCardClick(url, key);
+});
 
 document.getElementById('settings-open-birthdays')?.addEventListener('click', () => openBirthdaysPageWithLoad());
 
@@ -3899,8 +4102,11 @@ document.getElementById('attendance-journal-upload-input')?.addEventListener('ch
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.ok) {
-      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : [], data);
-      showToast('Файл журналу збережено на сервері');
+      // Відкласти оновлення DOM на наступний кадр — після важкого upload у WebView менше «фрізу» наступного екрана
+      requestAnimationFrame(() => {
+        renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : [], data);
+        showToast('Файл журналу збережено на сервері');
+      });
     } else {
       showToast(data.error || 'Не вдалося завантажити файл на сервер');
     }

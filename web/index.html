@@ -28,7 +28,7 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=0.0.44" />
+  <link rel="stylesheet" href="styles.css?v=0.0.47" />
 </head>
 <body>
   <div class="app-tba-watermark" aria-hidden="true">ТБА</div>
@@ -218,6 +218,10 @@
           <span class="settings-page__tile-label">Дні народження</span>
           <span class="settings-page__tile-hint">Список та найближчі дати</span>
         </button>
+        <button type="button" id="settings-open-links" class="settings-page__tile" aria-label="Корисні посилання">
+          <span class="settings-page__tile-label">Корисні посилання</span>
+          <span class="settings-page__tile-hint">Moodle, деканат, форми, соцмережі</span>
+        </button>
       </div>
       <footer class="settings-page__footer">
         <span id="app-version" class="settings-page__version" aria-label="Версія додатку"></span>
@@ -281,6 +285,67 @@
           <button type="button" class="modal-btn modal-btn-secondary" data-action="reset-bg">Скинути</button>
           <button type="button" class="modal-btn modal-btn-primary" data-action="save-bg">Застосувати</button>
         </div>
+      </div>
+    </section>
+
+    <section id="links-page" class="links-page" hidden aria-label="Корисні посилання">
+      <header class="links-page__header">
+        <button type="button" id="links-back-btn" class="birthdays-page__back btn-bg" aria-label="Назад до налаштувань">
+          ← Назад
+        </button>
+        <div class="app-header-block links-page__title-block">
+          <div class="app-header-block__text">
+            <h1 class="app-title">Корисні посилання</h1>
+            <p class="links-page__lede">Натисніть двічі на картку, щоб відкрити посилання</p>
+          </div>
+        </div>
+      </header>
+      <div class="links-page__list">
+        <button
+          type="button"
+          class="useful-link-card"
+          data-link-key="moodle"
+          data-url="https://distance.kuk.edu.ua/login/index.php"
+        >
+          <span class="useful-link-card__title">Moodle КУК</span>
+          <span class="useful-link-card__url">distance.kuk.edu.ua</span>
+        </button>
+        <button
+          type="button"
+          class="useful-link-card"
+          data-link-key="dekanat-tg"
+          data-url="https://t.me/dekanat_kino_kuk"
+        >
+          <span class="useful-link-card__title">Телеграм деканату</span>
+          <span class="useful-link-card__url">t.me/dekanat_kino_kuk</span>
+        </button>
+        <button
+          type="button"
+          class="useful-link-card"
+          data-link-key="form-cert"
+          data-url="https://docs.google.com/forms/d/e/1FAIpQLSc42Q8GnUr5W9eWyA6QIpG4tlBwXLMyyvnQQAo5zPFFdi3cQg/viewform"
+        >
+          <span class="useful-link-card__title">Google форма для замовлення заяв</span>
+          <span class="useful-link-card__url">docs.google.com · форма</span>
+        </button>
+        <button
+          type="button"
+          class="useful-link-card"
+          data-link-key="instagram"
+          data-url="https://www.instagram.com/ikitb_university/"
+        >
+          <span class="useful-link-card__title">Instagram Факультету</span>
+          <span class="useful-link-card__url">instagram.com/ikitb_university</span>
+        </button>
+        <button
+          type="button"
+          class="useful-link-card"
+          data-link-key="kuk-site"
+          data-url="https://kuk.edu.ua/"
+        >
+          <span class="useful-link-card__title">Сайт університету</span>
+          <span class="useful-link-card__url">kuk.edu.ua</span>
+        </button>
       </div>
     </section>
 
@@ -610,6 +675,6 @@
     </nav>
   </div>
 
-  <script src="main.js?v=0.0.44"></script>
+  <script src="main.js?v=0.0.47"></script>
 </body>
 </html>

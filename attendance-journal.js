@@ -201,7 +201,7 @@ export function saveJournalFileBuffer(buffer) {
     throw new Error('Файл занадто малий');
   }
   try {
-    XLSX.read(buffer, { type: 'buffer' });
+    XLSX.read(buffer, { type: 'buffer', cellStyles: false });
   } catch {
     throw new Error('Файл не є коректним Excel (.xlsx)');
   }
@@ -217,7 +217,8 @@ export function loadJournalWorkbook() {
       'Файл журналу не знайдено. Завантажте «ТБА-35 test.xlsx» кнопкою «Відправити Excel на сервер» у журналі або покладіть файл у корінь проєкту / задайте ATTENDANCE_JOURNAL_PATH у змінних середовища.',
     );
   }
-  const wb = XLSX.readFile(p, { cellDates: true, cellStyles: true });
+  // cellStyles: false — значно швидше й менше RAM; стилі для запису бере xlsx-populate з файлу окремо
+  const wb = XLSX.readFile(p, { cellDates: true, cellStyles: false });
   return { wb, path: p };
 }
 

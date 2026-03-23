@@ -533,6 +533,92 @@ body[data-bg-mode='light'] .user-nav-dock {
   cursor: default;
 }
 
+/* Сторінка «Корисні посилання» */
+.links-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.links-page[hidden] {
+  display: none !important;
+}
+
+.links-page__header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.links-page__title-block {
+  margin-bottom: 0;
+}
+
+.links-page__lede {
+  margin: 8px 0 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.links-page__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.useful-link-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.useful-link-card:hover {
+  background: var(--bg-card-hover);
+}
+
+.useful-link-card:active {
+  transform: scale(0.99);
+}
+
+.useful-link-card__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.25;
+}
+
+.useful-link-card__url {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  word-break: break-all;
+}
+
 /* Сторінка «Фон екрана» (налаштування з налаштувань) */
 .bg-settings-page {
   display: flex;
@@ -1400,6 +1486,7 @@ body[data-bg-mode='light'] .important-page__textarea {
 .important-page__current--enter.important-page__current {
   animation: lesson-card-enter-drop 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--important-enter-delay, 0ms);
+  animation-iteration-count: 1;
   transform-origin: 50% 0;
 }
 
@@ -3091,6 +3178,16 @@ body.admin-page .app-shell {
 .reminder-readonly-para--empty {
   min-height: 0.6em;
   margin-bottom: 8px;
+}
+
+/* Посилання в тексті «Важливо»: відкриття двома натисканнями (див. main.js) */
+.reminder-inline-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  word-break: break-all;
 }
 
 body[data-bg-mode="light"] .reminder-readonly {
