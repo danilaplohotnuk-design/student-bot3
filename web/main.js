@@ -148,7 +148,10 @@ function stampWeatherCardEnter(el) {
 
 /** Порядкова анімація появи карток «Важливо» (як у пар) */
 let importantCardEnterIndex = 0;
-const IMPORTANT_ENTER_STAGGER_MS = 72;
+/** Коротший стегер, щоб довга історія не «тягнула» секундами */
+const IMPORTANT_ENTER_STAGGER_MS = 36;
+/** Макс. індекс для затримки — далі картки з’являються одразу (без накопичення затримки) */
+const IMPORTANT_ENTER_STAGGER_CAP = 10;
 
 /** variant: 'student-current' | 'admin-current' | 'history' */
 function stampImportantCardEnter(el, variant) {
@@ -156,7 +159,8 @@ function stampImportantCardEnter(el, variant) {
   try {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   } catch (_) {}
-  el.style.setProperty('--important-enter-delay', `${importantCardEnterIndex * IMPORTANT_ENTER_STAGGER_MS}ms`);
+  const staggerI = Math.min(importantCardEnterIndex, IMPORTANT_ENTER_STAGGER_CAP);
+  el.style.setProperty('--important-enter-delay', `${staggerI * IMPORTANT_ENTER_STAGGER_MS}ms`);
   importantCardEnterIndex += 1;
   if (variant === 'history') el.classList.add('important-history-card--enter');
   else if (variant === 'student-current') el.classList.add('student-important-current--enter');
@@ -1508,11 +1512,10 @@ function renderStudentImportantPage() {
   listEl.querySelectorAll('.important-history-card').forEach((card) => stampImportantCardEnter(card, 'history'));
 }
 
-async function showStudentImportantPage() {
+function showStudentImportantPage() {
   if (adminMode) return;
   closeReminderPopover();
   document.getElementById('schedule-modal-overlay')?.remove();
-  await fetchReminderFromServer();
   const sv = document.getElementById('schedule-view');
   const wp = document.getElementById('weather-page');
   const bp = document.getElementById('birthdays-page');
@@ -1529,6 +1532,7 @@ async function showStudentImportantPage() {
   if (bgp) bgp.hidden = true;
   sv.hidden = true;
   sip.hidden = false;
+  // Спочатку показуємо сторінку з кешованими даними (без очікування мережі)
   renderStudentImportantPage();
   markReminderSeen();
   syncReminderTrigger();
@@ -1539,6 +1543,14 @@ async function showStudentImportantPage() {
     window.scrollTo(0, 0);
   } catch (_) {}
   syncUserNavDockActive();
+  // Оновлення з сервера в фоні — без блокування перемикання
+  fetchReminderFromServer().then(() => {
+    if (!isStudentImportantPageVisible()) return;
+    renderStudentImportantPage();
+    markReminderSeen();
+    syncReminderTrigger();
+    syncUnreadDot();
+  });
 }
 
 /** Захист від випадкових подвійних натискань у режимі адміна (мс) */

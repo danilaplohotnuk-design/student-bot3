@@ -1394,11 +1394,11 @@ body[data-bg-mode='light'] .important-page__textarea {
   word-break: break-word;
 }
 
-/* Анімація появи як у карток пар (lesson-card-enter-drop + стагер) */
+/* Анімація появи як у карток пар (lesson-card-enter-drop + стагер) — трохи коротше за пари, щоб не «тягнуло» */
 .important-history-card--enter.important-history-card,
 .student-important-current--enter.student-important-current,
 .important-page__current--enter.important-page__current {
-  animation: lesson-card-enter-drop 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: lesson-card-enter-drop 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
   animation-delay: var(--important-enter-delay, 0ms);
   transform-origin: 50% 0;
 }
