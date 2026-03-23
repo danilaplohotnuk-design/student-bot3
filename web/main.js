@@ -4026,8 +4026,6 @@ function syncAdminChrome() {
   if (userDock) userDock.hidden = adminMode;
   const bap = document.getElementById('birthdays-admin-panel');
   if (bap) bap.hidden = !adminMode;
-  const examsEntry = document.getElementById('exams-admin-entry');
-  if (examsEntry) examsEntry.hidden = !adminMode;
   if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
   if (adminVisitStatsIntervalId) {
     clearInterval(adminVisitStatsIntervalId);
@@ -4885,18 +4883,6 @@ document.getElementById('admin-nav-journal')?.addEventListener('click', () => {
 document.getElementById('admin-nav-exams')?.addEventListener('click', () => {
   if (!adminMode) return;
   showExamsAdminPage();
-});
-
-document.getElementById('exams-admin-open-btn')?.addEventListener('click', () => {
-  if (!adminMode) return;
-  runAdminUiAction(() => {
-    showExamsAdminPage();
-  });
-});
-
-document.getElementById('exams-admin-back-btn')?.addEventListener('click', () => {
-  if (!adminMode) return;
-  navigateAdminToSchedule();
 });
 
 document.getElementById('exams-admin-submit-btn')?.addEventListener('click', () => {

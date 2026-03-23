@@ -832,22 +832,6 @@ body[data-bg-mode='light'] .user-nav-dock {
   display: none !important;
 }
 
-/* Екзамени — кнопка в розкладі (адмін) */
-.exams-admin-entry {
-  padding: 0 16px 10px;
-  max-width: 560px;
-  margin: 0 auto;
-}
-
-.exams-admin-entry[hidden] {
-  display: none !important;
-}
-
-.exams-admin-entry__btn {
-  width: 100%;
-  justify-content: center;
-}
-
 /* Сторінка «Екзамен» (адмін) */
 .exams-admin-page {
   display: flex;
@@ -866,10 +850,6 @@ body[data-bg-mode='light'] .user-nav-dock {
 .exams-admin-page__header {
   flex-shrink: 0;
   padding: 0 16px;
-}
-
-.exams-admin-page__back {
-  margin-bottom: 8px;
 }
 
 .exams-admin-page__lede {
