@@ -6,6 +6,9 @@ node_modules/
 # Локальна статистика відвідувань (на сервері — у DATA_DIR/stats.json)
 stats.json
 
+# Локальні екзамени (на проді — Supabase або DATA_DIR/exams.json)
+exams.json
+
 # Журнал присутніх (Excel; оновлюється з адмінки)
 ТБА-35 test.xlsx
 ТБА-35 test (2).xlsx

@@ -249,15 +249,17 @@ body:not([data-bg-kind="image"]) .app-tba-watermark {
 
 .admin-visit-stats {
   display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 4px 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-light);
   background: rgba(0, 0, 0, 0.2);
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-muted);
+  max-width: 100%;
 }
 
 .admin-visit-stats__label {
@@ -265,6 +267,30 @@ body:not([data-bg-kind="image"]) .app-tba-watermark {
   letter-spacing: 0.04em;
   font-size: 0.65rem;
   opacity: 0.9;
+}
+
+.admin-visit-stats__nums {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+}
+
+.admin-visit-stats__pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.admin-visit-stats__sub {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.admin-visit-stats__sep {
+  opacity: 0.45;
+  font-weight: 400;
 }
 
 .admin-visit-stats__value {
@@ -804,6 +830,175 @@ body[data-bg-mode='light'] .user-nav-dock {
 
 .reminder-unread-dot[hidden] {
   display: none !important;
+}
+
+/* Екзамени — кнопка в розкладі (адмін) */
+.exams-admin-entry {
+  padding: 0 16px 10px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.exams-admin-entry[hidden] {
+  display: none !important;
+}
+
+.exams-admin-entry__btn {
+  width: 100%;
+  justify-content: center;
+}
+
+/* Сторінка «Екзамен» (адмін) */
+.exams-admin-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 0 1 auto;
+  width: 100%;
+  min-height: 0;
+  padding: 0 0 24px;
+}
+
+.exams-admin-page[hidden] {
+  display: none !important;
+}
+
+.exams-admin-page__header {
+  flex-shrink: 0;
+  padding: 0 16px;
+}
+
+.exams-admin-page__back {
+  margin-bottom: 8px;
+}
+
+.exams-admin-page__lede {
+  margin-top: 6px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.exams-admin-page__form-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 16px;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+}
+
+.exams-admin-page__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.exams-admin-page__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.exams-admin-page__msg {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.exams-admin-page__msg--err {
+  color: var(--error);
+}
+
+.exams-admin-page__msg--ok {
+  color: var(--accent);
+}
+
+.exams-admin-page__submit {
+  margin-top: 4px;
+  width: 100%;
+  justify-content: center;
+}
+
+.exams-admin-page__list {
+  padding: 0 16px;
+}
+
+.exams-admin-page__list-title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.exams-admin-page__list-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.exams-admin-page__list-meta {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-dim);
+}
+
+.exams-admin-page__list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.exams-admin-page__list-card-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.exams-admin-page__list-card-meta {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.exams-admin-page__list-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exams-admin-page__list-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.exams-admin-page__list-btn--danger {
+  border-color: rgba(255, 120, 120, 0.45);
+  color: #ffaaa8;
 }
 
 /* Журнал присутніх (адмін, Excel) */
@@ -1748,8 +1943,9 @@ body[data-bg-mode='light'] .weather-search-exit-btn {
   transform: translateY(-0.5px);
 }
 
-/* Розмиття на весь екран (fixed), інакше видно «рамку» по ширині .app-shell) */
-.weather-search-dim {
+/* Розмиття на весь екран (fixed), інакше видно «рамку» по ширині .app-shell) — погода + календар дати */
+.weather-search-dim,
+.schedule-date-dim {
   position: fixed;
   left: 0;
   right: 0;
@@ -1758,7 +1954,7 @@ body[data-bg-mode='light'] .weather-search-exit-btn {
   width: 100%;
   min-height: 100vh;
   min-height: 100dvh;
-  z-index: 200;
+  z-index: 999;
   margin: 0;
   padding: 0;
   border: none;
@@ -1779,7 +1975,8 @@ body[data-bg-mode='light'] .weather-search-exit-btn {
     -webkit-backdrop-filter 0.48s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.weather-search-dim.weather-search-dim--visible {
+.weather-search-dim.weather-search-dim--visible,
+.schedule-date-dim.schedule-date-dim--visible {
   opacity: 1;
   pointer-events: auto;
   background: rgba(0, 0, 0, 0.1);
@@ -1787,12 +1984,14 @@ body[data-bg-mode='light'] .weather-search-exit-btn {
   -webkit-backdrop-filter: blur(6px);
 }
 
-body[data-bg-mode='light'] .weather-search-dim.weather-search-dim--visible {
+body[data-bg-mode='light'] .weather-search-dim.weather-search-dim--visible,
+body[data-bg-mode='light'] .schedule-date-dim.schedule-date-dim--visible {
   background: rgba(255, 255, 255, 0.2);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .weather-search-dim {
+  .weather-search-dim,
+  .schedule-date-dim {
     transition-duration: 0.01ms;
   }
 
@@ -2473,87 +2672,313 @@ body[data-bg-mode="light"] .birthdays-list {
   word-break: break-word;
 }
 
-/* === Date section === */
-.date-section {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto auto;
-  gap: 8px 10px;
-  align-items: end;
-  margin-bottom: 24px;
-}
-
-.date-picker-wrap {
-  grid-column: 1;
-  grid-row: 1 / 3;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* === Розклад: секції сторінки === */
+.schedule-page-section {
+  margin-bottom: 22px;
+  width: 100%;
   min-width: 0;
 }
 
-.date-quick-btns {
-  grid-column: 2;
-  grid-row: 2;
-  align-self: end;
+.schedule-page-section--lessons {
+  margin-bottom: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.schedule-section__title {
+  margin: 0 0 10px;
+  padding: 0 2px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Панель вибору дати (скло, як картки пар) */
+.schedule-date-panel {
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-glass);
+  overflow: hidden;
+}
+
+.schedule-date-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+}
+
+.schedule-date-panel__label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.schedule-date-panel__quick {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.schedule-date-panel__btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 14px;
+}
+
+/* Кнопка вибору дати — як картка пошуку погоди */
+.schedule-date-picker-anchor {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+/* Вище шару розмиття (dim = 200), щоб календар не потрапляв під backdrop-filter */
+.schedule-date-picker-anchor.schedule-date-picker-anchor--open {
+  z-index: 10000;
+  isolation: isolate;
+}
+
+.schedule-date-picker-trigger {
+  width: 100%;
+  min-height: 52px;
+  text-align: left;
+}
+
+.schedule-date-picker-trigger.schedule-date-picker-trigger--open {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Попап календаря (скло + картки днів) */
+.schedule-date-picker-popover {
+  position: fixed;
+  left: 50%;
+  /* Вище над нижньою панеллю та safe-area */
+  bottom: max(18vh, calc(env(safe-area-inset-bottom) + 72px));
+  transform: translateX(-50%);
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(78vh, 540px);
+  z-index: 10010;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  box-sizing: border-box;
+  overflow: visible;
+  isolation: isolate;
+}
+
+/* Без backdrop-filter тут: інакше «скло» розмиває саму панель поверх dim */
+.schedule-date-picker-popover__inner {
+  position: relative;
+  z-index: 10011;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+  background: #101827;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  filter: none;
+  opacity: 1;
+  box-shadow: var(--shadow-glass), var(--glass-edge);
+  color: var(--text);
+  max-height: inherit;
+  overflow: hidden;
+}
+
+body[data-bg-mode='light'] .schedule-date-picker-popover__inner {
+  background: #f3f6fb;
+}
+
+.schedule-date-picker__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   flex-shrink: 0;
 }
 
-@media (max-width: 480px) {
-  .date-section {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto;
-    gap: 10px 0;
-    align-items: stretch;
-    margin-bottom: 24px;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
+.schedule-date-picker__month-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  text-transform: capitalize;
+  letter-spacing: -0.02em;
+}
 
-  .date-picker-wrap {
-    grid-column: 1;
-    grid-row: 1 / 3;
-    gap: 8px;
-  }
+.schedule-date-picker__nav {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--text);
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
 
-  .date-quick-btns {
-    grid-column: 1;
-    grid-row: 3;
-    display: flex;
-    gap: 10px;
-    width: 100%;
-    margin-top: 4px;
-  }
+.schedule-date-picker__nav:hover {
+  background: var(--bg-card-hover);
+}
 
-  .date-input {
-    height: 48px;
-    min-height: 48px;
-    padding: 0 12px;
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 48px;
-    width: 100%;
-    box-sizing: border-box;
-    border-radius: var(--radius-sm);
-    -webkit-appearance: none;
-    appearance: none;
-  }
+.schedule-date-picker__nav:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
-  .btn-quick {
-    flex: 1;
-    min-width: 0;
-    height: 48px;
-    min-height: 48px;
-    padding: 0 12px;
-    font-size: 0.9375rem;
-    white-space: nowrap;
-    box-sizing: border-box;
-    border-radius: var(--radius-sm);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
+.schedule-date-picker__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.schedule-date-picker__weekdays span {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.schedule-date-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.schedule-date-picker__day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  min-height: 40px;
+  padding: 0;
+  margin: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.32);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--shadow-glass);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.1s ease,
+    box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.schedule-date-picker__day:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.schedule-date-picker__day--muted {
+  opacity: 0.42;
+  font-weight: 600;
+}
+
+.schedule-date-picker__day--today:not(.schedule-date-picker__day--selected) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+
+.schedule-date-picker__day--selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  background: rgba(59, 130, 246, 0.22);
+  color: var(--text);
+}
+
+.schedule-date-picker__day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.schedule-date-picker__day:active {
+  transform: scale(0.96);
+}
+
+.schedule-date-picker__footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-light);
+}
+
+.schedule-date-picker__footer-btn {
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--accent);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.schedule-date-picker__footer-btn:hover {
+  background: var(--bg-card-hover);
+}
+
+body[data-bg-mode='light'] .schedule-date-picker__nav,
+body[data-bg-mode='light'] .schedule-date-picker__day--selected {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+body[data-bg-mode='light'] .schedule-date-picker__footer-btn {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+body[data-bg-mode='light'] .schedule-date-picker__day:not(.schedule-date-picker__day--selected) {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .date-label {
@@ -2564,6 +2989,7 @@ body[data-bg-mode="light"] .birthdays-list {
   margin-bottom: 0;
 }
 
+/* Загальні стилі date-input (інші екрани, якщо колись знадобляться) */
 .date-input {
   width: 100%;
   padding: 14px 16px;
@@ -2585,26 +3011,31 @@ body[data-bg-mode="light"] .birthdays-list {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-.date-quick-btns {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 .btn-quick {
   padding: 14px 16px;
   font-family: var(--font);
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--text);
-  background: var(--bg-card);
+  background: rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.2s, transform 0.1s;
+  transition: background 0.2s, transform 0.1s, border-color 0.2s;
+}
+
+.schedule-date-panel__btn {
+  background: rgba(0, 0, 0, 0.18);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Без scale при тапі — інакше екран «дьоргається» разом із зміною висоти списку */
+.schedule-date-panel .btn-quick:active {
+  transform: none;
 }
 
 .btn-quick:active {
@@ -2613,6 +3044,18 @@ body[data-bg-mode="light"] .birthdays-list {
 
 .btn-quick:hover {
   background: var(--bg-card-hover);
+}
+
+.schedule-date-panel .btn-quick:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+body[data-bg-mode='light'] .schedule-date-panel .btn-quick {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+body[data-bg-mode='light'] .schedule-date-panel .btn-quick:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 /* === Schedule list === */
@@ -2737,6 +3180,16 @@ body[data-bg-mode="light"] .birthdays-list {
 
 .lesson-card--clickable:hover .lesson-zoom-hint {
   text-decoration: underline;
+}
+
+.lesson-card--exam {
+  border-left: 3px solid rgba(160, 190, 255, 0.55);
+}
+
+.lesson-exam-topic {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.35;
 }
 
 /* Вільний слот — контурна картка */
@@ -3113,6 +3566,14 @@ body.admin-page .app-shell {
   color: var(--text-dim);
   margin-top: 10px;
   line-height: 1.4;
+}
+
+.admin-stat-hint-inline {
+  display: inline;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  margin-left: 4px;
 }
 
 .btn-secondary {
@@ -3746,8 +4207,14 @@ body[data-bg-mode="light"] .lesson-card .lesson-time {
   font-weight: 700;
 }
 
+body[data-bg-mode="light"] .schedule-date-panel {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-glass), var(--glass-edge);
+}
+
 body[data-bg-mode="light"] .date-input,
-body[data-bg-mode="light"] .btn-quick,
+body[data-bg-mode="light"] .btn-quick:not(.schedule-date-panel__btn),
 body[data-bg-mode="light"] .btn-bg {
   background: rgba(255, 255, 255, 0.22);
   backdrop-filter: blur(var(--glass-blur));

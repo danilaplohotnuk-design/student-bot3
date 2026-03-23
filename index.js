@@ -26,6 +26,13 @@ import {
   deleteReminderHistoryItem,
   isSupabaseReminderEnabled,
 } from './reminder-storage.js';
+import {
+  getExamsByDate,
+  addExam,
+  updateExam,
+  deleteExam,
+  isSupabaseExamsEnabled,
+} from './exams-storage.js';
 
 dotenv.config();
 
@@ -151,6 +158,20 @@ if (RUN_BOT) {
 // --------- Express: фронтенд і API ---------
 app.use(express.json());
 
+// Локальна розробка: сторінка з Live Server (інший порт), API на npm run dev (:3000)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,POST,PUT,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-password');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.status(204).send();
+  }
+  next();
+});
+
 // Віддавати статичні файли з папки web (вона в тому ж корені, що й index.js)
 app.use(
   express.static(path.join(__dirname, 'web'), {
@@ -188,15 +209,21 @@ app.get('/api/health', (req, res) => {
 });
 
 // GET /api/schedule?date=YYYY-MM-DD  – розклад на конкретну дату
-app.get('/api/schedule', (req, res) => {
+app.get('/api/schedule', async (req, res) => {
   const { date } = req.query;
 
   if (!date) {
     return res.status(400).json({ error: 'Потрібен параметр date=YYYY-MM-DD' });
   }
 
-  const lessons = getScheduleByDate(date);
-  res.json({ date, lessons });
+  try {
+    const lessons = getScheduleByDate(date);
+    const exams = await getExamsByDate(date);
+    res.json({ date, lessons, exams });
+  } catch (err) {
+    console.error('GET /api/schedule:', err);
+    res.status(500).json({ error: 'Не вдалося зчитати розклад' });
+  }
 });
 
 // (простий) GET /api/schedule/all – увесь розклад (на майбутнє)
@@ -341,6 +368,40 @@ app.post('/api/admin/schedule/restore', requireAdmin, (req, res) => {
   schedule.length = 0;
   schedule.push(...JSON.parse(JSON.stringify(initialSchedule)));
   res.json({ ok: true });
+});
+
+// Екзамени (окремо від пар; файл або Supabase — див. supabase/exams.sql)
+app.post('/api/admin/exams/add', requireAdmin, async (req, res) => {
+  try {
+    const out = await addExam(req.body || {});
+    if (out.error) return res.status(400).json({ error: out.error });
+    res.json({ ok: true, exam: out.exam });
+  } catch (err) {
+    console.error('exams add:', err);
+    res.status(500).json({ error: 'Не вдалося зберегти' });
+  }
+});
+
+app.post('/api/admin/exams/update', requireAdmin, async (req, res) => {
+  try {
+    const out = await updateExam(req.body || {});
+    if (out.error) return res.status(400).json({ error: out.error });
+    res.json({ ok: true, exam: out.exam });
+  } catch (err) {
+    console.error('exams update:', err);
+    res.status(500).json({ error: 'Не вдалося оновити' });
+  }
+});
+
+app.post('/api/admin/exams/delete', requireAdmin, async (req, res) => {
+  try {
+    const out = await deleteExam(req.body?.id);
+    if (out.error) return res.status(400).json({ error: out.error });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('exams delete:', err);
+    res.status(500).json({ error: 'Не вдалося видалити' });
+  }
 });
 
 // Текст нагадування (адмін)
@@ -523,6 +584,11 @@ app.listen(PORT, async () => {
     isSupabaseReminderEnabled()
       ? '«Важливо»: Supabase'
       : '«Важливо»: файл reminder.json (локально або DATA_DIR)',
+  );
+  console.log(
+    isSupabaseExamsEnabled()
+      ? 'Екзамени: Supabase (таблиця schedule_exams)'
+      : 'Екзамени: файл exams.json (локально або DATA_DIR)',
   );
   if (!RUN_BOT) {
     console.log('Бот не запущено (BOT_TOKEN не заданий). Тільки веб-додаток і API. Бот окремо в student-bot-telegram.');

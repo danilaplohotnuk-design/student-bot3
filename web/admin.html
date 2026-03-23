@@ -50,7 +50,9 @@
       <h2>Статистика відвідувань</h2>
       <p id="admin-stats-error" class="admin-message error" style="display: none;"></p>
       <p class="admin-stat-hint">
-        Рахуємо відкриття додатку (після завантаження сторінки). Не враховуємо User-Agent з підрядками
+        Рахуємо відкриття додатку (після завантаження сторінки). «За день» — унікальні відвідувачі за поточний
+        календарний день (часовий пояс сервера, дата в дужках біля показника). «Всього» — унікальні за весь час.
+        Не враховуємо User-Agent з підрядками
         <code>cron-job</code>, <code>console.cron</code>; додаткові — змінна <code>STATS_EXCLUDE_UA_SUBSTR</code>.
         Свій відбиток не рахувати: GET <code>/api/admin/stats/self-fingerprint</code> (з паролем) → додай у
         <code>STATS_EXCLUDE_FINGERPRINTS</code> на сервері. Ping до <code>/api/health</code> з тим самим cron-UA не
@@ -63,7 +65,11 @@
         </div>
         <div class="admin-stat-card">
           <div id="stat-unique" class="admin-stat-value">—</div>
-          <div class="admin-stat-label">Унікальні відвідувачі</div>
+          <div class="admin-stat-label">Унікальні відвідувачі (всього)</div>
+        </div>
+        <div class="admin-stat-card">
+          <div id="stat-unique-today" class="admin-stat-value">—</div>
+          <div class="admin-stat-label">Унікальні за сьогодні <span id="stat-unique-day-hint" class="admin-stat-hint-inline"></span></div>
         </div>
         <div class="admin-stat-card" style="grid-column: 1 / -1;">
           <div id="stat-cron" class="admin-stat-value">—</div>

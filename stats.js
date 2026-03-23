@@ -19,18 +19,46 @@ function getStatsFilePath() {
 }
 
 let pageVisits = 0;
-/** Унікальні відвідувачі за відбитком IP + User-Agent */
+/** Унікальні відвідувачі за відбитком IP + User-Agent (за весь час) */
 const uniqueFingerprints = new Set();
+/** Унікальні відвідувачі по календарних днях (локальний час сервера): YYYY-MM-DD → Set<fp> */
+const dailyUniqueByDay = new Map();
 /** Запити до /api/health (cron-job.org тощо) — не входять у pageVisits */
 let healthPings = 0;
+
+/** Ключ дня YYYY-MM-DD у локальній часовій зоні процесу Node */
+function localDayKey(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Не зберігати вічно — обмеження розміру stats.json */
+const MAX_DAILY_UNIQUE_DAYS = 500;
+
+function pruneOldDailyStats() {
+  const keys = [...dailyUniqueByDay.keys()].sort();
+  if (keys.length <= MAX_DAILY_UNIQUE_DAYS) return;
+  const drop = keys.length - MAX_DAILY_UNIQUE_DAYS;
+  for (let i = 0; i < drop; i++) {
+    dailyUniqueByDay.delete(keys[i]);
+  }
+}
 
 let saveDebounceTimer = null;
 
 function saveStatsToDiskSync() {
+  pruneOldDailyStats();
   const filePath = getStatsFilePath();
+  const dailyUnique = {};
+  for (const [day, s] of dailyUniqueByDay) {
+    dailyUnique[day] = [...s];
+  }
   const payload = {
     pageVisits,
     fingerprints: [...uniqueFingerprints],
+    dailyUnique,
     healthPings,
     savedAt: Date.now(),
   };
@@ -67,6 +95,19 @@ function loadStatsFromDisk() {
         if (typeof fp === 'string' && /^[a-f0-9]{32}$/i.test(fp)) {
           uniqueFingerprints.add(fp.slice(0, 32).toLowerCase());
         }
+      }
+    }
+    dailyUniqueByDay.clear();
+    if (j.dailyUnique && typeof j.dailyUnique === 'object' && !Array.isArray(j.dailyUnique)) {
+      for (const [day, arr] of Object.entries(j.dailyUnique)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Array.isArray(arr)) continue;
+        const s = new Set();
+        for (const fp of arr) {
+          if (typeof fp === 'string' && /^[a-f0-9]{32}$/i.test(fp)) {
+            s.add(fp.slice(0, 32).toLowerCase());
+          }
+        }
+        if (s.size) dailyUniqueByDay.set(day, s);
       }
     }
   } catch {
@@ -157,7 +198,15 @@ export function shouldExcludeHealthPing(req) {
 export function recordPageVisit(req) {
   if (shouldExcludeFromPageStats(req)) return;
   pageVisits += 1;
-  uniqueFingerprints.add(fingerprint(req));
+  const fp = fingerprint(req);
+  uniqueFingerprints.add(fp);
+  const day = localDayKey();
+  let daySet = dailyUniqueByDay.get(day);
+  if (!daySet) {
+    daySet = new Set();
+    dailyUniqueByDay.set(day, daySet);
+  }
+  daySet.add(fp);
   scheduleSaveStats();
 }
 
@@ -168,9 +217,15 @@ export function recordHealthPing(req) {
 }
 
 export function getStats() {
+  const todayKey = localDayKey();
+  const uniqueVisitorsToday = dailyUniqueByDay.get(todayKey)?.size ?? 0;
   return {
     pageVisits,
     uniqueVisitors: uniqueFingerprints.size,
+    /** Унікальні відвідувачі за поточний календарний день (час сервера) */
+    uniqueVisitorsToday,
+    /** Дата, для якої рахується uniqueVisitorsToday (YYYY-MM-DD) */
+    uniqueVisitorsDayKey: todayKey,
     /** Запити keep-alive / cron до /api/health (не заходи на сайт) */
     healthPingsCron: healthPings,
   };

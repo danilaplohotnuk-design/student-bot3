@@ -28,7 +28,7 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="styles.css?v=0.0.50" />
+  <link rel="stylesheet" href="styles.css?v=0.0.60" />
 </head>
 <body>
   <div class="app-tba-watermark" aria-hidden="true">ТБА</div>
@@ -43,14 +43,30 @@
       </div>
     </header>
 
-    <section class="date-section">
-      <div class="date-picker-wrap">
-        <label for="date-input" class="date-label">Дата</label>
-        <input type="date" id="date-input" class="date-input" />
-      </div>
-      <div class="date-quick-btns">
-        <button type="button" id="today-btn" class="btn-quick">Сьогодні</button>
-        <button type="button" id="tomorrow-btn" class="btn-quick">Завтра</button>
+    <section class="schedule-page-section" aria-labelledby="schedule-section-date-title">
+      <h2 id="schedule-section-date-title" class="schedule-section__title">Дата занять</h2>
+      <div class="schedule-date-panel">
+        <div class="schedule-date-panel__body">
+          <label for="schedule-date-open-btn" class="schedule-date-panel__label">Оберіть потрібну дату</label>
+          <input type="hidden" id="date-input" name="schedule-date" />
+          <div class="schedule-date-picker-anchor">
+            <button
+              type="button"
+              id="schedule-date-open-btn"
+              class="schedule-date-picker-trigger weather-search-card"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="schedule-date-picker-popover"
+            >
+              <span class="weather-search-card__title" id="schedule-date-display">—</span>
+              <span class="weather-search-card__meta" id="schedule-date-display-meta">Натисніть, щоб обрати день</span>
+            </button>
+          </div>
+          <div class="schedule-date-panel__quick">
+            <button type="button" id="today-btn" class="btn-quick schedule-date-panel__btn">Сьогодні</button>
+            <button type="button" id="tomorrow-btn" class="btn-quick schedule-date-panel__btn">Завтра</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -71,16 +87,35 @@
         <p class="admin-mode-banner-title">Режим редагування</p>
         <div id="admin-visit-stats" class="admin-visit-stats" hidden>
           <span class="admin-visit-stats__label">Унікальні відвідувачі</span>
-          <span id="admin-visit-stats-unique" class="admin-visit-stats__value" aria-live="polite">—</span>
+          <div class="admin-visit-stats__nums" aria-live="polite">
+            <span class="admin-visit-stats__pair">
+              <span class="admin-visit-stats__sub">Всього</span>
+              <span id="admin-visit-stats-total" class="admin-visit-stats__value">—</span>
+            </span>
+            <span class="admin-visit-stats__sep" aria-hidden="true">·</span>
+            <span class="admin-visit-stats__pair">
+              <span class="admin-visit-stats__sub">За день</span>
+              <span id="admin-visit-stats-day" class="admin-visit-stats__value">—</span>
+            </span>
+          </div>
         </div>
       </div>
       <div class="admin-mode-banner-rule" aria-hidden="true"></div>
     </div>
 
-    <main class="schedule-main">
-      <div id="schedule" class="schedule-list"></div>
-      <div class="schedule-main-spacer" aria-hidden="true"></div>
-    </main>
+    <div id="exams-admin-entry" class="exams-admin-entry" hidden>
+      <button type="button" id="exams-admin-open-btn" class="modal-btn modal-btn-secondary exams-admin-entry__btn">
+        Екзамен
+      </button>
+    </div>
+
+    <section class="schedule-page-section schedule-page-section--lessons" aria-labelledby="schedule-section-lessons-title">
+      <h2 id="schedule-section-lessons-title" class="schedule-section__title">Пари на день</h2>
+      <div class="schedule-main">
+        <div id="schedule" class="schedule-list"></div>
+        <div class="schedule-main-spacer" aria-hidden="true"></div>
+      </div>
+    </section>
 
     <footer class="app-footer">
       <span class="app-footer-text">Розклад для студентів</span>
@@ -436,6 +471,73 @@
       </section>
     </section>
 
+    <section id="exams-admin-page" class="exams-admin-page" hidden aria-label="Екзамени">
+      <header class="exams-admin-page__header">
+        <button type="button" id="exams-admin-back-btn" class="exams-admin-page__back btn-bg" aria-label="Назад до розкладу">
+          ← Назад
+        </button>
+        <div class="app-header-block">
+          <div class="app-header-block__text">
+            <h1 class="app-title">Екзамен</h1>
+            <p class="app-subtitle exams-admin-page__lede">
+              Додайте екзамен: дата, предмет, час (довільний текст), за потреби — тема та посилання на Zoom.
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <div class="exams-admin-page__form-block">
+        <label class="exams-admin-page__label" for="exams-admin-date">Дата</label>
+        <input type="date" id="exams-admin-date" class="exams-admin-page__input" />
+        <label class="exams-admin-page__label" for="exams-admin-subject">Предмет</label>
+        <input
+          type="text"
+          id="exams-admin-subject"
+          class="exams-admin-page__input"
+          maxlength="200"
+          placeholder="Назва предмету"
+          autocomplete="off"
+        />
+        <label class="exams-admin-page__label" for="exams-admin-time">Час</label>
+        <input
+          type="text"
+          id="exams-admin-time"
+          class="exams-admin-page__input"
+          maxlength="120"
+          placeholder="Наприклад: 9:00, або «з 10:00 до 12:00»"
+          autocomplete="off"
+        />
+        <label class="exams-admin-page__label" for="exams-admin-topic">Тема (необовʼязково)</label>
+        <input
+          type="text"
+          id="exams-admin-topic"
+          class="exams-admin-page__input"
+          maxlength="500"
+          placeholder="Якщо є"
+          autocomplete="off"
+        />
+        <label class="exams-admin-page__label" for="exams-admin-zoom">Посилання Zoom (необовʼязково)</label>
+        <input
+          type="text"
+          inputmode="url"
+          id="exams-admin-zoom"
+          class="exams-admin-page__input"
+          maxlength="2000"
+          placeholder="https://..."
+          autocomplete="off"
+        />
+        <p id="exams-admin-msg" class="exams-admin-page__msg" hidden role="status"></p>
+        <button type="button" id="exams-admin-submit-btn" class="modal-btn modal-btn-primary exams-admin-page__submit">
+          Зберегти екзамен
+        </button>
+      </div>
+
+      <section class="exams-admin-page__list" aria-labelledby="exams-admin-list-heading">
+        <h2 id="exams-admin-list-heading" class="exams-admin-page__list-title">На обрану дату</h2>
+        <div id="exams-admin-list" class="exams-admin-page__list-inner"></div>
+      </section>
+    </section>
+
     <section id="attendance-journal-page" class="attendance-journal-page" hidden aria-label="Ведення журналу">
       <header class="attendance-journal-page__header">
         <div class="app-header-block">
@@ -661,6 +763,32 @@
       </button>
       <button
         type="button"
+        id="admin-nav-exams"
+        class="admin-nav-dock__btn"
+        data-admin-nav="exams"
+        title="Екзамен"
+        aria-label="Екзамени"
+      >
+        <svg class="admin-nav-dock__svg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path
+            d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path
+            d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path d="M8 7h8M8 11h8M8 15h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
+      <button
+        type="button"
         id="admin-nav-exit"
         class="admin-nav-dock__btn admin-nav-dock__btn--exit"
         title="Вийти з режиму редагування"
@@ -681,6 +809,46 @@
     </nav>
   </div>
 
-  <script src="main.js?v=0.0.50"></script>
+  <div id="schedule-date-dim" class="schedule-date-dim" aria-hidden="true"></div>
+  <div
+    id="schedule-date-picker-popover"
+    class="schedule-date-picker-popover"
+    hidden
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="schedule-date-dialog-title"
+  >
+    <div class="schedule-date-picker-popover__inner">
+      <div class="schedule-date-picker__header">
+        <button type="button" class="schedule-date-picker__nav" id="schedule-date-prev-month" aria-label="Попередній місяць">‹</button>
+        <h3 id="schedule-date-dialog-title" class="schedule-date-picker__month-title"></h3>
+        <button type="button" class="schedule-date-picker__nav" id="schedule-date-next-month" aria-label="Наступний місяць">›</button>
+      </div>
+      <div class="schedule-date-picker__weekdays" aria-hidden="true">
+        <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Нд</span>
+      </div>
+      <div class="schedule-date-picker__grid" id="schedule-date-grid"></div>
+      <div class="schedule-date-picker__footer">
+        <button type="button" class="schedule-date-picker__footer-btn" id="schedule-date-picker-close">Закрити</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Якщо index.html відкрито з іншого порту (наприклад Live Server), а API на npm run dev — зазвичай :3000 -->
+  <script>
+    (function () {
+      try {
+        var loc = window.location;
+        if (loc.protocol !== 'http:' && loc.protocol !== 'https:') return;
+        var h = loc.hostname;
+        if (h !== '127.0.0.1' && h !== 'localhost') return;
+        var p = String(loc.port || '');
+        if (p && p !== '3000') {
+          window.__TG_SCHEDULE_API_BASE__ = loc.protocol + '//' + h + ':3000';
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <script src="main.js?v=0.0.61"></script>
 </body>
 </html>

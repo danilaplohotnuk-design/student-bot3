@@ -1,5 +1,19 @@
 const tg = window.Telegram?.WebApp;
 
+/**
+ * База для запитів до API. Якщо сторінку відкрито не з Express (наприклад Live Server на :5500),
+ * у index.html задайте: window.__TG_SCHEDULE_API_BASE__ = 'http://localhost:3000'
+ * Бекенд: npm run dev → http://localhost:3000 (і статика, і /api).
+ */
+function apiUrl(path) {
+  const p = path.startsWith('/') ? path : `/${path}`;
+  const base =
+    typeof window !== 'undefined' && window.__TG_SCHEDULE_API_BASE__
+      ? String(window.__TG_SCHEDULE_API_BASE__).replace(/\/$/, '')
+      : '';
+  return `${base}${p}`;
+}
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -141,9 +155,9 @@ if (document.readyState === 'loading') {
 }
 
 // Підрахунок відкриття додатку (не залежить від GET /; cron не виконує JS)
-fetch('/api/track/pageview', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+fetch(apiUrl('/api/track/pageview'), { method: 'POST', credentials: 'same-origin' }).catch(() => {});
 
-fetch('/api/version')
+fetch(apiUrl('/api/version'))
   .then((r) => r.json())
   .then((d) => {
     const el = document.getElementById('app-version');
@@ -176,6 +190,234 @@ const dateLabel = document.getElementById('date-label');
 const todayBtn = document.getElementById('today-btn');
 const tomorrowBtn = document.getElementById('tomorrow-btn');
 const scheduleContainer = document.getElementById('schedule');
+
+/** --- Календар дати (скло + розмиття фону, як пошук погоди) --- */
+function padScheduleDatePart(n) {
+  return String(n).padStart(2, '0');
+}
+
+function isoFromYmdParts(y, m, d) {
+  return `${y}-${padScheduleDatePart(m)}-${padScheduleDatePart(d)}`;
+}
+
+function scheduleDaysInMonth(year, monthIndex) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+/** Понеділок — перший стовпець */
+function buildScheduleCalendarCells(year, monthIndex) {
+  const firstDow = new Date(year, monthIndex, 1).getDay();
+  const mondayIndex = (firstDow + 6) % 7;
+  const dim = scheduleDaysInMonth(year, monthIndex);
+  const cells = [];
+  const prevMonth = monthIndex === 0 ? 11 : monthIndex - 1;
+  const prevYear = monthIndex === 0 ? year - 1 : year;
+  const prevDim = scheduleDaysInMonth(prevYear, prevMonth);
+  for (let i = 0; i < mondayIndex; i++) {
+    const day = prevDim - mondayIndex + i + 1;
+    cells.push({ y: prevYear, m: prevMonth + 1, d: day, muted: true });
+  }
+  for (let d = 1; d <= dim; d++) {
+    cells.push({ y: year, m: monthIndex + 1, d, muted: false });
+  }
+  const nextMonth = monthIndex === 11 ? 0 : monthIndex + 1;
+  const nextYear = monthIndex === 11 ? year + 1 : year;
+  let dNext = 1;
+  while (cells.length < 42) {
+    cells.push({ y: nextYear, m: nextMonth + 1, d: dNext, muted: true });
+    dNext += 1;
+  }
+  return cells;
+}
+
+let schedulePickerViewYear = new Date().getFullYear();
+let schedulePickerViewMonth = new Date().getMonth();
+
+function updateScheduleDateDisplay() {
+  const titleEl = document.getElementById('schedule-date-display');
+  const metaEl = document.getElementById('schedule-date-display-meta');
+  if (!titleEl || !metaEl) return;
+  const iso = dateInput && dateInput.value ? dateInput.value : '';
+  if (!iso) {
+    titleEl.textContent = '—';
+    metaEl.textContent = 'Натисніть, щоб обрати день';
+    return;
+  }
+  try {
+    const [y, m, d] = iso.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    titleEl.textContent = new Intl.DateTimeFormat('uk-UA', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(dt);
+  } catch (_) {
+    titleEl.textContent = iso;
+  }
+  if (iso === todayISO()) metaEl.textContent = 'Сьогодні · натисніть, щоб змінити';
+  else if (iso === tomorrowISO()) metaEl.textContent = 'Завтра · натисніть, щоб змінити';
+  else metaEl.textContent = 'Обрана дата розкладу · натисніть, щоб змінити';
+}
+
+function renderScheduleDatePickerMonthTitle() {
+  const el = document.getElementById('schedule-date-dialog-title');
+  if (!el) return;
+  const raw = new Intl.DateTimeFormat('uk-UA', { month: 'long', year: 'numeric' }).format(
+    new Date(schedulePickerViewYear, schedulePickerViewMonth, 1),
+  );
+  el.textContent = raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+function renderScheduleDatePickerGrid() {
+  const grid = document.getElementById('schedule-date-grid');
+  if (!grid || !dateInput) return;
+  const selected = dateInput.value;
+  const tToday = todayISO();
+  grid.innerHTML = '';
+  const cells = buildScheduleCalendarCells(schedulePickerViewYear, schedulePickerViewMonth);
+  cells.forEach(({ y, m, d, muted }) => {
+    const iso = isoFromYmdParts(y, m, d);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'schedule-date-picker__day';
+    btn.dataset.iso = iso;
+    if (muted) btn.classList.add('schedule-date-picker__day--muted');
+    if (iso === selected) btn.classList.add('schedule-date-picker__day--selected');
+    if (iso === tToday) btn.classList.add('schedule-date-picker__day--today');
+    btn.textContent = String(d);
+    btn.setAttribute('aria-pressed', iso === selected ? 'true' : 'false');
+    grid.appendChild(btn);
+  });
+}
+
+function closeScheduleDatePicker() {
+  const popover = document.getElementById('schedule-date-picker-popover');
+  const openBtn = document.getElementById('schedule-date-open-btn');
+  const anchor = document.querySelector('.schedule-date-picker-anchor');
+  const dim = document.getElementById('schedule-date-dim');
+  if (popover) popover.hidden = true;
+  if (anchor) anchor.classList.remove('schedule-date-picker-anchor--open');
+  if (openBtn) {
+    openBtn.classList.remove('schedule-date-picker-trigger--open');
+    openBtn.setAttribute('aria-expanded', 'false');
+  }
+  if (dim) {
+    dim.classList.remove('schedule-date-dim--visible');
+    dim.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function openScheduleDatePicker() {
+  const iso = (dateInput && dateInput.value) || todayISO();
+  const parts = iso.split('-').map(Number);
+  const y = parts[0];
+  const mo = parts[1];
+  if (y && mo) {
+    schedulePickerViewYear = y;
+    schedulePickerViewMonth = mo - 1;
+  }
+  const popover = document.getElementById('schedule-date-picker-popover');
+  const openBtn = document.getElementById('schedule-date-open-btn');
+  const anchor = document.querySelector('.schedule-date-picker-anchor');
+  const dim = document.getElementById('schedule-date-dim');
+  if (!popover || !openBtn || !anchor) return;
+  renderScheduleDatePickerMonthTitle();
+  renderScheduleDatePickerGrid();
+  popover.hidden = false;
+  anchor.classList.add('schedule-date-picker-anchor--open');
+  openBtn.classList.add('schedule-date-picker-trigger--open');
+  openBtn.setAttribute('aria-expanded', 'true');
+  if (dim) {
+    dim.classList.add('schedule-date-dim--visible');
+    dim.setAttribute('aria-hidden', 'false');
+  }
+}
+
+function setScheduleDateFromUi(iso, { closePicker = false } = {}) {
+  if (!iso || !dateInput) return;
+  dateInput.value = iso;
+  updateScheduleDateDisplay();
+  loadSchedule(iso);
+  if (closePicker) closeScheduleDatePicker();
+}
+
+function scheduleDatePickerEscapeHandler(e) {
+  if (e.key !== 'Escape') return;
+  const dim = document.getElementById('schedule-date-dim');
+  if (!dim || !dim.classList.contains('schedule-date-dim--visible')) return;
+  closeScheduleDatePicker();
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function initScheduleDatePicker() {
+  const dim = document.getElementById('schedule-date-dim');
+  const openBtn = document.getElementById('schedule-date-open-btn');
+  const popover = document.getElementById('schedule-date-picker-popover');
+  const grid = document.getElementById('schedule-date-grid');
+  const prevBtn = document.getElementById('schedule-date-prev-month');
+  const nextBtn = document.getElementById('schedule-date-next-month');
+  const closeBtn = document.getElementById('schedule-date-picker-close');
+  const sv = document.getElementById('schedule-view');
+  if (!dim || !openBtn || !popover || !grid || !dateInput) return;
+
+  document.addEventListener('keydown', scheduleDatePickerEscapeHandler, true);
+
+  openBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!popover.hidden) {
+      closeScheduleDatePicker();
+      return;
+    }
+    openScheduleDatePicker();
+  });
+
+  dim.addEventListener('click', () => closeScheduleDatePicker());
+
+  popover.addEventListener('click', (e) => e.stopPropagation());
+
+  prevBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    schedulePickerViewMonth -= 1;
+    if (schedulePickerViewMonth < 0) {
+      schedulePickerViewMonth = 11;
+      schedulePickerViewYear -= 1;
+    }
+    renderScheduleDatePickerMonthTitle();
+    renderScheduleDatePickerGrid();
+  });
+
+  nextBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    schedulePickerViewMonth += 1;
+    if (schedulePickerViewMonth > 11) {
+      schedulePickerViewMonth = 0;
+      schedulePickerViewYear += 1;
+    }
+    renderScheduleDatePickerMonthTitle();
+    renderScheduleDatePickerGrid();
+  });
+
+  closeBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeScheduleDatePicker();
+  });
+
+  grid.addEventListener('click', (e) => {
+    const btn = e.target.closest('.schedule-date-picker__day');
+    if (!btn || !btn.dataset.iso) return;
+    e.stopPropagation();
+    setScheduleDateFromUi(btn.dataset.iso, { closePicker: true });
+  });
+
+  if (sv && typeof MutationObserver !== 'undefined') {
+    const obs = new MutationObserver(() => {
+      if (sv.hidden) closeScheduleDatePicker();
+    });
+    obs.observe(sv, { attributes: true, attributeFilter: ['hidden'] });
+  }
+}
 
 /** Порядкова анімація появи карток пар (падіння + відскок) */
 let scheduleCardEnterIndex = 0;
@@ -1250,22 +1492,174 @@ function setHeaderTodayDateLabel() {
 
 async function loadSchedule(date) {
   setHeaderTodayDateLabel();
-  scheduleContainer.innerHTML = `
+  const listEl = scheduleContainer;
+  const prevH = listEl ? listEl.offsetHeight : 0;
+  if (listEl && prevH > 48) {
+    try {
+      listEl.style.minHeight = `${prevH}px`;
+    } catch (_) {}
+  }
+  listEl.innerHTML = `
     <div class="state-message">
       Завантаження
       <div class="loading-dots"><span></span><span></span><span></span></div>
     </div>
   `;
   try {
-    const res = await fetch(`/api/schedule?date=${encodeURIComponent(date)}`);
+    const res = await fetch(apiUrl(`/api/schedule?date=${encodeURIComponent(date)}`));
     if (!res.ok) throw new Error('Помилка завантаження');
     const data = await res.json();
-    renderSchedule(data.date, data.lessons || []);
+    renderSchedule(data.date, data.lessons || [], data.exams || []);
   } catch (err) {
     scheduleContainer.innerHTML = '<p class="state-message error">Не вдалося завантажити розклад</p>';
     console.error(err);
     setHeaderTodayDateLabel();
+  } finally {
+    try {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (listEl) listEl.style.minHeight = '';
+        });
+      });
+    } catch (_) {}
   }
+}
+
+function attachExamZoomDoubleTap(cardEl) {
+  const url = (cardEl.dataset.examZoomUrl || '').trim();
+  if (!url) return;
+  cardEl.addEventListener('click', () => {
+    if (cardEl.dataset.skipZoomClick === '1') {
+      delete cardEl.dataset.skipZoomClick;
+      return;
+    }
+    const key = `exam|${cardEl.dataset.examId || ''}`;
+    if (zoomPendingKey === key && zoomPendingTimer !== null) {
+      clearTimeout(zoomPendingTimer);
+      zoomPendingTimer = null;
+      zoomPendingKey = null;
+      openExternalUsefulLink(url);
+      return;
+    }
+    if (zoomPendingTimer) clearTimeout(zoomPendingTimer);
+    zoomPendingKey = key;
+    showToast('Натисніть ще раз для посилання');
+    zoomPendingTimer = setTimeout(() => {
+      zoomPendingTimer = null;
+      zoomPendingKey = null;
+    }, ZOOM_DOUBLE_TAP_MS);
+  });
+}
+
+/**
+ * @param {string} date
+ * @param {{ id: string, subject: string, timeText: string, topic?: string, zoomUrl?: string }} exam
+ */
+function appendExamCard(date, exam) {
+  const fillExamCardContent = (card) => {
+    card.dataset.examId = exam.id;
+    card.dataset.examDate = date;
+    card.dataset.examSubject = exam.subject;
+    card.dataset.examTimeText = exam.timeText || '';
+    card.dataset.examTopic = exam.topic || '';
+    card.dataset.examZoomUrl = (exam.zoomUrl || '').trim();
+
+    const title = document.createElement('h2');
+    title.className = 'lesson-title';
+    title.textContent = exam.subject;
+
+    const meta = document.createElement('div');
+    meta.className = 'lesson-meta';
+
+    const time = document.createElement('div');
+    time.className = 'lesson-time';
+    time.textContent = exam.timeText || '';
+    meta.appendChild(time);
+
+    if (exam.topic && String(exam.topic).trim()) {
+      const topicEl = document.createElement('div');
+      topicEl.className = 'lesson-exam-topic';
+      topicEl.textContent = exam.topic;
+      meta.appendChild(topicEl);
+    }
+
+    card.appendChild(title);
+    card.appendChild(meta);
+
+    if (card.dataset.examZoomUrl) {
+      const zoomHint = document.createElement('div');
+      zoomHint.className = 'lesson-zoom-hint';
+      zoomHint.textContent = 'Натисни двічі для посилання';
+      card.appendChild(zoomHint);
+    }
+  };
+
+  if (!adminMode) {
+    const card = document.createElement('div');
+    card.className = 'lesson-card lesson-card--exam lesson-card--clickable';
+    fillExamCardContent(card);
+    scheduleContainer.appendChild(card);
+    stampLessonCardEnter(card);
+    attachExamZoomDoubleTap(card);
+    return;
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'lesson-card-swipe-wrap';
+
+  const actions = document.createElement('div');
+  actions.className = 'lesson-card-swipe-actions';
+  actions.setAttribute('aria-hidden', 'true');
+
+  const btnEdit = document.createElement('button');
+  btnEdit.type = 'button';
+  btnEdit.className = 'lesson-swipe-btn lesson-swipe-btn--replace';
+  btnEdit.innerHTML = `
+    <svg class="lesson-swipe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+    <span class="lesson-swipe-label">Змінити</span>
+  `;
+  btnEdit.addEventListener('click', (e) => {
+    e.stopPropagation();
+    runAdminUiAction(() => {
+      openExamFormModal(exam);
+    });
+  });
+
+  const btnDelete = document.createElement('button');
+  btnDelete.type = 'button';
+  btnDelete.className = 'lesson-swipe-btn lesson-swipe-btn--delete';
+  btnDelete.innerHTML = `
+    <svg class="lesson-swipe-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/>
+    </svg>
+    <span class="lesson-swipe-label">Видалити</span>
+  `;
+  btnDelete.addEventListener('click', (e) => {
+    e.stopPropagation();
+    runAdminUiAction(() => {
+      confirmDeleteExam(exam);
+    });
+  });
+
+  actions.appendChild(btnEdit);
+  actions.appendChild(btnDelete);
+
+  const front = document.createElement('div');
+  front.className = 'lesson-card lesson-card--exam lesson-card--clickable lesson-card--swipe-front';
+  fillExamCardContent(front);
+
+  attachSwipeToLessonFront(front, SWIPE_ACTIONS_WIDTH);
+  if (front.dataset.examZoomUrl) {
+    attachExamZoomDoubleTap(front);
+  }
+
+  wrap.appendChild(actions);
+  wrap.appendChild(front);
+  scheduleContainer.appendChild(wrap);
+  stampLessonCardEnter(wrap);
 }
 
 function appendEmptySlotCard(date, slot) {
@@ -1437,11 +1831,14 @@ function appendLessonCard(date, lesson) {
   stampLessonCardEnter(wrap);
 }
 
-function renderSchedule(date, lessons) {
+function renderSchedule(date, lessons, exams) {
   setHeaderTodayDateLabel();
   currentScheduleDate = date || '';
   scheduleContainer.innerHTML = '';
   scheduleCardEnterIndex = 0;
+
+  const examList = Array.isArray(exams) ? exams : [];
+  examList.forEach((ex) => appendExamCard(date, ex));
 
   const list = lessons || [];
   const byStart = new Map();
@@ -1463,7 +1860,7 @@ function renderSchedule(date, lessons) {
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
     .forEach((l) => appendLessonCard(date, l));
 
-  if (!adminMode && list.length === 0) {
+  if (!adminMode && list.length === 0 && examList.length === 0) {
     const msg = document.createElement('p');
     msg.className = 'state-message empty schedule-empty-day';
     msg.textContent = emptyDayScheduleMessage(date);
@@ -1754,7 +2151,7 @@ function normalizeBirthdayEntry(raw) {
 
 async function loadBirthdaysJson() {
   try {
-    const r = await fetch('/api/birthdays', { cache: 'no-store' });
+    const r = await fetch(apiUrl('/api/birthdays'), { cache: 'no-store' });
     if (!r.ok) return;
     const data = await r.json();
     const arr = Array.isArray(data?.birthdays) ? data.birthdays : [];
@@ -1771,7 +2168,7 @@ async function saveBirthdaysListToServer(list) {
     errEl.textContent = '';
   }
   try {
-    const res = await fetch('/api/admin/birthdays', {
+    const res = await fetch(apiUrl('/api/admin/birthdays'), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -1991,6 +2388,16 @@ function isAttendanceJournalPageVisible() {
   return Boolean(el && !el.hidden);
 }
 
+function hideExamsAdminPage() {
+  const el = document.getElementById('exams-admin-page');
+  if (el) el.hidden = true;
+}
+
+function isExamsAdminPageVisible() {
+  const el = document.getElementById('exams-admin-page');
+  return Boolean(el && !el.hidden);
+}
+
 function isSettingsPageVisible() {
   const p = document.getElementById('settings-page');
   return Boolean(p && !p.hidden);
@@ -2001,6 +2408,7 @@ function navigateUserToSchedule() {
   closeReminderPopover();
   document.getElementById('schedule-modal-overlay')?.remove();
   hideAttendanceJournalPage();
+  hideExamsAdminPage();
   hideLinksPageLayer();
   const wp = document.getElementById('weather-page');
   const bp = document.getElementById('birthdays-page');
@@ -2034,6 +2442,7 @@ function showSettingsPage() {
   const sip = document.getElementById('student-important-page');
   if (!sv || !sp) return;
   hideAttendanceJournalPage();
+  hideExamsAdminPage();
   hideLinksPageLayer();
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
@@ -2100,6 +2509,7 @@ function syncAdminDockActive() {
   if (isBirthdaysPageVisible()) key = 'birthdays';
   else if (isImportantPageVisible()) key = 'important';
   else if (isAttendanceJournalPageVisible()) key = 'journal';
+  else if (isExamsAdminPageVisible()) key = 'exams';
   const active = dock.querySelector(`[data-admin-nav="${key}"]`);
   if (active) active.classList.add('admin-nav-dock__btn--active');
 }
@@ -2108,6 +2518,7 @@ function navigateAdminToSchedule() {
   closeReminderPopover();
   document.getElementById('schedule-modal-overlay')?.remove();
   hideAttendanceJournalPage();
+  hideExamsAdminPage();
   hideLinksPageLayer();
   const wp = document.getElementById('weather-page');
   const bp = document.getElementById('birthdays-page');
@@ -2135,7 +2546,7 @@ function navigateAdminToSchedule() {
 async function fetchAdminReminderFull() {
   if (!storedAdminPassword || !adminMode) return;
   try {
-    const res = await fetch('/api/admin/reminder', {
+    const res = await fetch(apiUrl('/api/admin/reminder'), {
       headers: { 'x-admin-password': storedAdminPassword },
     });
     if (!res.ok) return;
@@ -2156,7 +2567,7 @@ async function postReminderDelete(action, index) {
   try {
     const body = { action };
     if (typeof index === 'number' && Number.isFinite(index)) body.index = index;
-    const res = await fetch('/api/admin/reminder/delete', {
+    const res = await fetch(apiUrl('/api/admin/reminder/delete'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2250,6 +2661,7 @@ function showImportantPage() {
   const sip = document.getElementById('student-important-page');
   if (!sv || !ip) return;
   hideAttendanceJournalPage();
+  hideExamsAdminPage();
   hideLinksPageLayer();
   if (sp) sp.hidden = true;
   if (bgp) bgp.hidden = true;
@@ -2294,7 +2706,7 @@ async function loadAttendanceJournalData() {
   try {
     const sheetSel = document.getElementById('attendance-journal-sheet-select');
     const sheet = sheetSel && sheetSel.value ? sheetSel.value : '';
-    const res = await fetch(`/api/admin/attendance${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ''}`, {
+    const res = await fetch(apiUrl(`/api/admin/attendance${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ''}`), {
       headers: { 'x-admin-password': storedAdminPassword },
     });
     if (!res.ok) throw new Error('fail');
@@ -2437,7 +2849,7 @@ async function saveAttendanceJournalCurrentPair() {
     return;
   }
   try {
-    const res = await fetch('/api/admin/attendance/save', {
+    const res = await fetch(apiUrl('/api/admin/attendance/save'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -2486,9 +2898,9 @@ async function loadAttendanceJournalDay() {
   }
   try {
     const res = await fetch(
-      `/api/admin/attendance/day?date=${encodeURIComponent(date)}&sheet=${encodeURIComponent(sheet)}`,
+      apiUrl(`/api/admin/attendance/day?date=${encodeURIComponent(date)}&sheet=${encodeURIComponent(sheet)}`),
       {
-      headers: { 'x-admin-password': storedAdminPassword },
+        headers: { 'x-admin-password': storedAdminPassword },
       },
     );
     const data = await res.json().catch(() => ({}));
@@ -2531,6 +2943,7 @@ async function showAttendanceJournalPage() {
   const sip = document.getElementById('student-important-page');
   const ajp = document.getElementById('attendance-journal-page');
   if (!sv || !ajp) return;
+  hideExamsAdminPage();
   hideLinksPageLayer();
   if (wp) wp.hidden = true;
   if (bp) bp.hidden = true;
@@ -2561,6 +2974,175 @@ async function showAttendanceJournalPage() {
   await loadAttendanceJournalData();
   syncAdminDockActive();
   syncUserNavDockActive();
+}
+
+async function refreshExamsAdminList() {
+  const listEl = document.getElementById('exams-admin-list');
+  const dateEl = document.getElementById('exams-admin-date');
+  if (!listEl || !dateEl || !dateEl.value) {
+    if (listEl) listEl.innerHTML = '';
+    return;
+  }
+  listEl.innerHTML = '';
+  const loading = document.createElement('p');
+  loading.className = 'exams-admin-page__list-meta';
+  loading.textContent = 'Завантаження…';
+  listEl.appendChild(loading);
+  try {
+    const res = await fetch(apiUrl(`/api/schedule?date=${encodeURIComponent(dateEl.value)}`));
+    const data = await res.json();
+    const exams = data.exams || [];
+    listEl.innerHTML = '';
+    if (!exams.length) {
+      const p = document.createElement('p');
+      p.className = 'exams-admin-page__list-meta';
+      p.textContent = 'Немає екзаменів на цю дату.';
+      listEl.appendChild(p);
+      return;
+    }
+    exams.forEach((ex) => {
+      const card = document.createElement('div');
+      card.className = 'exams-admin-page__list-card';
+      const title = document.createElement('p');
+      title.className = 'exams-admin-page__list-card-title';
+      title.textContent = ex.subject || '';
+      const time = document.createElement('p');
+      time.className = 'exams-admin-page__list-card-meta';
+      time.textContent = ex.timeText || '';
+      card.appendChild(title);
+      card.appendChild(time);
+      if (ex.topic && String(ex.topic).trim()) {
+        const t = document.createElement('p');
+        t.className = 'exams-admin-page__list-card-meta';
+        t.textContent = ex.topic;
+        card.appendChild(t);
+      }
+      const actions = document.createElement('div');
+      actions.className = 'exams-admin-page__list-card-actions';
+      const btnEdit = document.createElement('button');
+      btnEdit.type = 'button';
+      btnEdit.className = 'exams-admin-page__list-btn';
+      btnEdit.textContent = 'Змінити';
+      btnEdit.addEventListener('click', () => runAdminUiAction(() => openExamFormModal(ex)));
+      const btnDel = document.createElement('button');
+      btnDel.type = 'button';
+      btnDel.className = 'exams-admin-page__list-btn exams-admin-page__list-btn--danger';
+      btnDel.textContent = 'Видалити';
+      btnDel.addEventListener('click', () => runAdminUiAction(() => confirmDeleteExam(ex)));
+      actions.appendChild(btnEdit);
+      actions.appendChild(btnDel);
+      card.appendChild(actions);
+      listEl.appendChild(card);
+    });
+  } catch (_) {
+    listEl.innerHTML = '';
+    const p = document.createElement('p');
+    p.className = 'exams-admin-page__list-meta';
+    p.textContent = 'Не вдалося завантажити список.';
+    listEl.appendChild(p);
+  }
+}
+
+async function showExamsAdminPage() {
+  if (!adminMode) return;
+  closeReminderPopover();
+  document.getElementById('schedule-modal-overlay')?.remove();
+  const sv = document.getElementById('schedule-view');
+  const wp = document.getElementById('weather-page');
+  const bp = document.getElementById('birthdays-page');
+  const ip = document.getElementById('important-page');
+  const sp = document.getElementById('settings-page');
+  const bgp = document.getElementById('bg-settings-page');
+  const sip = document.getElementById('student-important-page');
+  const ajp = document.getElementById('attendance-journal-page');
+  const eap = document.getElementById('exams-admin-page');
+  if (!sv || !eap) return;
+  hideAttendanceJournalPage();
+  hideLinksPageLayer();
+  if (wp) wp.hidden = true;
+  if (bp) bp.hidden = true;
+  if (ip) ip.hidden = true;
+  if (sp) sp.hidden = true;
+  if (bgp) bgp.hidden = true;
+  if (sip) sip.hidden = true;
+  if (ajp) ajp.hidden = true;
+  if (isWeatherPageVisible()) {
+    const w = document.getElementById('weather-page');
+    if (w) w.hidden = true;
+    window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  }
+  sv.hidden = true;
+  eap.hidden = false;
+  window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  window.addEventListener('keydown', scheduleSubpageEscapeHandler);
+  try {
+    window.scrollTo(0, 0);
+  } catch (_) {}
+  const dateEl = document.getElementById('exams-admin-date');
+  if (dateEl) {
+    if (currentScheduleDate) {
+      dateEl.value = currentScheduleDate;
+    } else if (!dateEl.value) {
+      try {
+        dateEl.value = new Date().toISOString().slice(0, 10);
+      } catch (_) {}
+    }
+  }
+  await refreshExamsAdminList();
+  syncAdminDockActive();
+  syncUserNavDockActive();
+}
+
+async function examsAdminSubmitAdd() {
+  if (!adminMode || !storedAdminPassword) return;
+  const dateEl = document.getElementById('exams-admin-date');
+  const subjEl = document.getElementById('exams-admin-subject');
+  const timeEl = document.getElementById('exams-admin-time');
+  const topicEl = document.getElementById('exams-admin-topic');
+  const zoomEl = document.getElementById('exams-admin-zoom');
+  const msgEl = document.getElementById('exams-admin-msg');
+  if (!dateEl || !subjEl || !timeEl || !msgEl) return;
+  msgEl.hidden = true;
+  msgEl.textContent = '';
+  const examFields = {
+    date: dateEl.value.trim(),
+    subject: subjEl.value.trim(),
+    timeText: timeEl.value.trim(),
+    topic: (topicEl?.value || '').trim(),
+    zoomUrl: (zoomEl?.value || '').trim(),
+  };
+  try {
+    const res = await fetch(apiUrl('/api/admin/exams/add'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': storedAdminPassword,
+      },
+      /* У Telegram WebView кастомні заголовки інколи знімаються — дублюємо пароль у тілі */
+      body: JSON.stringify({ ...examFields, password: storedAdminPassword }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.ok) {
+      msgEl.textContent = 'Збережено';
+      msgEl.className = 'exams-admin-page__msg exams-admin-page__msg--ok';
+      msgEl.hidden = false;
+      subjEl.value = '';
+      timeEl.value = '';
+      if (topicEl) topicEl.value = '';
+      if (zoomEl) zoomEl.value = '';
+      if (currentScheduleDate === examFields.date) loadSchedule(currentScheduleDate);
+      await refreshExamsAdminList();
+    } else {
+      msgEl.textContent =
+        data.error || (res.status === 401 ? 'Невірний пароль' : `Помилка збереження (${res.status})`);
+      msgEl.className = 'exams-admin-page__msg exams-admin-page__msg--err';
+      msgEl.hidden = false;
+    }
+  } catch (_) {
+    msgEl.textContent = 'Помилка мережі';
+    msgEl.className = 'exams-admin-page__msg exams-admin-page__msg--err';
+    msgEl.hidden = false;
+  }
 }
 
 function scheduleSubpageEscapeHandler(e) {
@@ -2596,6 +3178,11 @@ function scheduleSubpageEscapeHandler(e) {
     return;
   }
   if (isImportantPageVisible()) {
+    navigateAdminToSchedule();
+    e.preventDefault();
+    return;
+  }
+  if (isExamsAdminPageVisible()) {
     navigateAdminToSchedule();
     e.preventDefault();
     return;
@@ -3227,6 +3814,7 @@ async function showWeatherPage() {
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
   hideAttendanceJournalPage();
+  hideExamsAdminPage();
   hideLinksPageLayer();
   if (ip) ip.hidden = true;
   if (sp) sp.hidden = true;
@@ -3258,6 +3846,7 @@ function showBirthdaysPage() {
   const bgp = document.getElementById('bg-settings-page');
   const sip = document.getElementById('student-important-page');
   hideAttendanceJournalPage();
+  hideExamsAdminPage();
   hideLinksPageLayer();
   if (ip) ip.hidden = true;
   if (sp) sp.hidden = true;
@@ -3327,7 +3916,7 @@ function closeReminderPopover() {
 
 async function fetchReminderFromServer() {
   try {
-    const res = await fetch('/api/reminder');
+    const res = await fetch(apiUrl('/api/reminder'));
     if (res.ok) {
       const data = await res.json();
       if (typeof data.text === 'string') reminderText = data.text;
@@ -3397,28 +3986,32 @@ function registerGlobalSwipeDismiss() {
 }
 
 async function loadAdminVisitStatsBar() {
-  const valEl = document.getElementById('admin-visit-stats-unique');
+  const totalEl = document.getElementById('admin-visit-stats-total');
+  const dayEl = document.getElementById('admin-visit-stats-day');
   const wrap = document.getElementById('admin-visit-stats');
-  if (!valEl || !wrap) return;
+  if (!totalEl || !dayEl || !wrap) return;
   if (!adminMode || !storedAdminPassword) {
     wrap.hidden = true;
     return;
   }
   try {
-    const res = await fetch('/api/admin/stats', {
+    const res = await fetch(apiUrl('/api/admin/stats'), {
       headers: { 'x-admin-password': storedAdminPassword },
       cache: 'no-store',
     });
     if (!res.ok) {
-      valEl.textContent = '—';
+      totalEl.textContent = '—';
+      dayEl.textContent = '—';
       wrap.hidden = false;
       return;
     }
     const data = await res.json();
-    valEl.textContent = String(Number(data.uniqueVisitors) || 0);
+    totalEl.textContent = String(Number(data.uniqueVisitors) || 0);
+    dayEl.textContent = String(Number(data.uniqueVisitorsToday) || 0);
     wrap.hidden = false;
   } catch (_) {
-    valEl.textContent = '—';
+    totalEl.textContent = '—';
+    dayEl.textContent = '—';
     wrap.hidden = false;
   }
 }
@@ -3433,6 +4026,8 @@ function syncAdminChrome() {
   if (userDock) userDock.hidden = adminMode;
   const bap = document.getElementById('birthdays-admin-panel');
   if (bap) bap.hidden = !adminMode;
+  const examsEntry = document.getElementById('exams-admin-entry');
+  if (examsEntry) examsEntry.hidden = !adminMode;
   if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
   if (adminVisitStatsIntervalId) {
     clearInterval(adminVisitStatsIntervalId);
@@ -3460,6 +4055,12 @@ function exitAdminMode() {
   }
   if (isAttendanceJournalPageVisible()) {
     hideAttendanceJournalPage();
+    const sv = document.getElementById('schedule-view');
+    if (sv) sv.hidden = false;
+    window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
+  }
+  if (isExamsAdminPageVisible()) {
+    hideExamsAdminPage();
     const sv = document.getElementById('schedule-view');
     if (sv) sv.hidden = false;
     window.removeEventListener('keydown', scheduleSubpageEscapeHandler);
@@ -3594,7 +4195,7 @@ function openPasswordModal(lessonOrNull, options = {}) {
     errorEl.style.display = 'none';
     errorEl.textContent = 'Невірний пароль';
     try {
-      const res = await fetch('/api/admin/check', {
+      const res = await fetch(apiUrl('/api/admin/check'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
@@ -3632,7 +4233,7 @@ function openPasswordModal(lessonOrNull, options = {}) {
 
 async function deletePair(lesson) {
   try {
-    const res = await fetch('/api/admin/schedule/delete', {
+    const res = await fetch(apiUrl('/api/admin/schedule/delete'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -3667,6 +4268,161 @@ function confirmDeletePair(lesson) {
   });
 }
 
+async function deleteExamById(id) {
+  try {
+    const res = await fetch(apiUrl('/api/admin/exams/delete'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': storedAdminPassword,
+      },
+      body: JSON.stringify({ id, password: storedAdminPassword }),
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok && data.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+function confirmDeleteExam(exam) {
+  if (!confirm('Видалити цей екзамен?')) {
+    closeAllLessonSwipes();
+    return;
+  }
+  deleteExamById(exam.id).then((ok) => {
+    if (ok) {
+      showToast('Екзамен видалено');
+      if (currentScheduleDate) loadSchedule(currentScheduleDate);
+      if (isExamsAdminPageVisible()) refreshExamsAdminList();
+    } else {
+      showToast('Помилка видалення');
+      closeAllLessonSwipes();
+    }
+  });
+}
+
+/**
+ * @param {{ id?: string, date?: string, subject?: string, timeText?: string, topic?: string, zoomUrl?: string } | null} examOrNull
+ */
+async function openExamFormModal(examOrNull) {
+  closeModals();
+  const isEdit = Boolean(examOrNull && examOrNull.id);
+  const defaultDate =
+    (examOrNull && examOrNull.date) ||
+    currentScheduleDate ||
+    document.getElementById('exams-admin-date')?.value ||
+    '';
+  if (!defaultDate) {
+    showToast('Оберіть дату в розкладі або на сторінці екзамену');
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'schedule-modal-overlay';
+  overlay.className = 'modal-overlay modal-overlay--pair';
+
+  overlay.innerHTML = `
+    <div class="modal-box modal-form modal-pair-glass">
+      <h3 class="modal-title">${isEdit ? 'Зміна екзамену' : 'Новий екзамен'}</h3>
+      <p class="modal-hint">Дата, предмет, час (довільний текст), за потреби — тема та Zoom</p>
+      <label for="exam-modal-date" class="modal-label">ДАТА</label>
+      <input type="date" id="exam-modal-date" class="modal-input" />
+      <label for="exam-modal-subject" class="modal-label">ПРЕДМЕТ</label>
+      <input type="text" id="exam-modal-subject" class="modal-input" maxlength="200" placeholder="Назва предмету" autocomplete="off" />
+      <label for="exam-modal-time" class="modal-label">ЧАС</label>
+      <input type="text" id="exam-modal-time" class="modal-input" maxlength="120" placeholder="Наприклад: 9:00 або 10:00–12:00" autocomplete="off" />
+      <label for="exam-modal-topic" class="modal-label">ТЕМА (НЕОБОВʼЯЗКОВО)</label>
+      <input type="text" id="exam-modal-topic" class="modal-input" maxlength="500" placeholder="Якщо є" autocomplete="off" />
+      <label for="exam-modal-zoom" class="modal-label">ZOOM (НЕОБОВʼЯЗКОВО)</label>
+      <input type="text" inputmode="url" id="exam-modal-zoom" class="modal-input" maxlength="2000" placeholder="https://..." autocomplete="off" />
+      <p id="exam-modal-error" class="modal-error" style="display:none;"></p>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn modal-btn-cancel" data-action="cancel">Скасувати</button>
+        <button type="button" class="modal-btn modal-btn-primary" data-action="save">${isEdit ? 'Зберегти' : 'Додати'}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const dateIn = overlay.querySelector('#exam-modal-date');
+  const subjIn = overlay.querySelector('#exam-modal-subject');
+  const timeIn = overlay.querySelector('#exam-modal-time');
+  const topicIn = overlay.querySelector('#exam-modal-topic');
+  const zoomIn = overlay.querySelector('#exam-modal-zoom');
+  const errorEl = overlay.querySelector('#exam-modal-error');
+
+  if (dateIn) dateIn.value = defaultDate;
+  if (subjIn && examOrNull?.subject) subjIn.value = examOrNull.subject;
+  if (timeIn && examOrNull?.timeText) timeIn.value = examOrNull.timeText;
+  if (topicIn && examOrNull?.topic) topicIn.value = examOrNull.topic;
+  if (zoomIn && examOrNull?.zoomUrl) zoomIn.value = examOrNull.zoomUrl;
+
+  [subjIn, timeIn, topicIn, zoomIn].forEach((el) => {
+    if (!el) return;
+    const stop = (e) => e.stopPropagation();
+    el.addEventListener('pointerdown', stop);
+    el.addEventListener('touchstart', stop, { passive: true });
+    el.addEventListener('click', stop);
+  });
+  if (dateIn) {
+    const stop = (e) => e.stopPropagation();
+    dateIn.addEventListener('pointerdown', stop);
+    dateIn.addEventListener('touchstart', stop, { passive: true });
+    dateIn.addEventListener('click', stop);
+  }
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay || e.target.dataset.action === 'cancel') {
+      closeModals();
+      closeAllLessonSwipes();
+    }
+  });
+
+  overlay.querySelector('[data-action="save"]')?.addEventListener('click', async () => {
+    const date = (dateIn?.value || '').trim();
+    const subject = (subjIn?.value || '').trim();
+    const timeText = (timeIn?.value || '').trim();
+    const topic = (topicIn?.value || '').trim();
+    const zoomUrl = (zoomIn?.value || '').trim();
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+    const examPayload = {
+      date,
+      subject,
+      timeText,
+      topic,
+      zoomUrl,
+    };
+    if (isEdit) examPayload.id = examOrNull.id;
+    try {
+      const examPath = isEdit ? '/api/admin/exams/update' : '/api/admin/exams/add';
+      const res = await fetch(apiUrl(examPath), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-password': storedAdminPassword,
+        },
+        body: JSON.stringify({ ...examPayload, password: storedAdminPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        closeModals();
+        closeAllLessonSwipes();
+        showToast(isEdit ? 'Екзамен оновлено' : 'Екзамен додано');
+        if (currentScheduleDate) loadSchedule(currentScheduleDate);
+        if (isExamsAdminPageVisible()) refreshExamsAdminList();
+      } else {
+        errorEl.textContent = data.error || 'Помилка збереження';
+        errorEl.style.display = 'block';
+      }
+    } catch (_) {
+      errorEl.textContent = 'Помилка мережі';
+      errorEl.style.display = 'block';
+    }
+  });
+}
+
 async function openAddPairFormModal(lessonOrNull) {
   if (!currentScheduleDate) {
     showToast('Оберіть дату в розкладі');
@@ -3676,7 +4432,7 @@ async function openAddPairFormModal(lessonOrNull) {
 
   let subjects = [];
   try {
-    const res = await fetch('/api/schedule/subjects');
+    const res = await fetch(apiUrl('/api/schedule/subjects'));
     const data = await res.json();
     subjects = data.subjects || [];
   } catch (_) {}
@@ -3855,12 +4611,12 @@ async function openAddPairFormModal(lessonOrNull) {
     }
     const [startTime, endTime] = timeValSel.split('|');
     try {
-      const scheduleRes = await fetch(`/api/schedule?date=${encodeURIComponent(currentScheduleDate)}`);
+      const scheduleRes = await fetch(apiUrl(`/api/schedule?date=${encodeURIComponent(currentScheduleDate)}`));
       const scheduleData = await scheduleRes.json().catch(() => ({}));
       const lessons = scheduleData.lessons || [];
       const existingAtTime = lessons.find((l) => l.startTime === startTime);
       if (existingAtTime) {
-        const delRes = await fetch('/api/admin/schedule/delete', {
+        const delRes = await fetch(apiUrl('/api/admin/schedule/delete'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -3879,7 +4635,7 @@ async function openAddPairFormModal(lessonOrNull) {
           return;
         }
       }
-      const res = await fetch('/api/admin/schedule/add', {
+      const res = await fetch(apiUrl('/api/admin/schedule/add'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -3916,7 +4672,7 @@ async function openOrCopyZoomLink(card) {
   const title = card.dataset.title || '';
   const teacher = card.dataset.teacher || '';
   try {
-    const res = await fetch(`/api/zoom-link?title=${encodeURIComponent(title)}&teacher=${encodeURIComponent(teacher)}`);
+    const res = await fetch(apiUrl(`/api/zoom-link?title=${encodeURIComponent(title)}&teacher=${encodeURIComponent(teacher)}`));
     const data = await res.json();
     if (data.url) {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -3978,26 +4734,28 @@ function onUsefulLinkCardClick(url, key) {
   }, ZOOM_DOUBLE_TAP_MS);
 }
 
+initScheduleDatePicker();
+
 dateInput.addEventListener('change', () => {
-  if (dateInput.value) loadSchedule(dateInput.value);
+  if (dateInput.value) {
+    updateScheduleDateDisplay();
+    loadSchedule(dateInput.value);
+  }
 });
 
 todayBtn.addEventListener('click', () => {
-  const today = todayISO();
-  dateInput.value = today;
-  loadSchedule(today);
+  setScheduleDateFromUi(todayISO(), { closePicker: true });
 });
 
 tomorrowBtn.addEventListener('click', () => {
-  const tomorrow = tomorrowISO();
-  dateInput.value = tomorrow;
-  loadSchedule(tomorrow);
+  setScheduleDateFromUi(tomorrowISO(), { closePicker: true });
 });
 
 applyBackground(getStoredBackground());
 
 const initialDate = todayISO();
 dateInput.value = initialDate;
+updateScheduleDateDisplay();
 setHeaderTodayDateLabel();
 loadSchedule(initialDate);
 fetchReminderFromServer();
@@ -4124,6 +4882,33 @@ document.getElementById('admin-nav-journal')?.addEventListener('click', () => {
   showAttendanceJournalPage();
 });
 
+document.getElementById('admin-nav-exams')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  showExamsAdminPage();
+});
+
+document.getElementById('exams-admin-open-btn')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  runAdminUiAction(() => {
+    showExamsAdminPage();
+  });
+});
+
+document.getElementById('exams-admin-back-btn')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  navigateAdminToSchedule();
+});
+
+document.getElementById('exams-admin-submit-btn')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  examsAdminSubmitAdd();
+});
+
+document.getElementById('exams-admin-date')?.addEventListener('change', () => {
+  if (!adminMode) return;
+  refreshExamsAdminList();
+});
+
 document.getElementById('attendance-journal-upload-trigger')?.addEventListener('click', () => {
   if (!adminMode) return;
   document.getElementById('attendance-journal-upload-input')?.click();
@@ -4137,7 +4922,7 @@ document.getElementById('attendance-journal-upload-input')?.addEventListener('ch
     input.value = '';
     const fd = new FormData();
     fd.append('file', file);
-    const res = await fetch('/api/admin/attendance/upload', {
+    const res = await fetch(apiUrl('/api/admin/attendance/upload'), {
       method: 'POST',
       headers: { 'x-admin-password': storedAdminPassword },
       body: fd,
@@ -4160,11 +4945,13 @@ document.getElementById('attendance-journal-upload-input')?.addEventListener('ch
 document.getElementById('attendance-journal-download-btn')?.addEventListener('click', async () => {
   if (!adminMode || !storedAdminPassword) return;
   try {
-    const res = await fetch('/api/admin/attendance/download', {
+    const res = await fetch(apiUrl('/api/admin/attendance/download'), {
       headers: { 'x-admin-password': storedAdminPassword },
     });
     if (!res.ok) {
-      const directUrl = `/api/admin/attendance/download?password=${encodeURIComponent(storedAdminPassword)}`;
+      const directUrl = apiUrl(
+        `/api/admin/attendance/download?password=${encodeURIComponent(storedAdminPassword)}`,
+      );
       window.open(directUrl, '_blank', 'noopener');
       showToast('Відкрили посилання для завантаження в браузері');
       return;
@@ -4184,7 +4971,9 @@ document.getElementById('attendance-journal-download-btn')?.addEventListener('cl
     setTimeout(() => URL.revokeObjectURL(url), 2500);
     showToast('Файл завантажено');
   } catch (_) {
-    const directUrl = `/api/admin/attendance/download?password=${encodeURIComponent(storedAdminPassword)}`;
+    const directUrl = apiUrl(
+      `/api/admin/attendance/download?password=${encodeURIComponent(storedAdminPassword)}`,
+    );
     window.open(directUrl, '_blank', 'noopener');
     showToast('Відкрили посилання для завантаження в браузері');
   }
@@ -4249,7 +5038,7 @@ document.getElementById('important-editor-save')?.addEventListener('click', asyn
   err.hidden = true;
   err.textContent = '';
   try {
-    const res = await fetch('/api/admin/reminder', {
+    const res = await fetch(apiUrl('/api/admin/reminder'), {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

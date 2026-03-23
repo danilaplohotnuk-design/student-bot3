@@ -8,6 +8,8 @@ const adminStatsSection = document.getElementById('admin-stats');
 const msgEl = document.getElementById('admin-message');
 const statPageVisits = document.getElementById('stat-page-visits');
 const statUnique = document.getElementById('stat-unique');
+const statUniqueToday = document.getElementById('stat-unique-today');
+const statUniqueDayHint = document.getElementById('stat-unique-day-hint');
 const statCron = document.getElementById('stat-cron');
 const statsRefreshBtn = document.getElementById('admin-stats-refresh');
 
@@ -25,6 +27,8 @@ async function loadAdminStats() {
     if (!res.ok) {
       statPageVisits.textContent = '—';
       statUnique.textContent = '—';
+      if (statUniqueToday) statUniqueToday.textContent = '—';
+      if (statUniqueDayHint) statUniqueDayHint.textContent = '';
       statCron.textContent = '—';
       if (statsErrorEl) {
         statsErrorEl.textContent = res.status === 401 ? 'Немає доступу (перевір пароль у змінних середовища на сервері).' : 'Не вдалося завантажити статистику.';
@@ -35,10 +39,18 @@ async function loadAdminStats() {
     const data = await res.json();
     statPageVisits.textContent = String(data.pageVisits ?? 0);
     statUnique.textContent = String(data.uniqueVisitors ?? 0);
+    if (statUniqueToday) statUniqueToday.textContent = String(data.uniqueVisitorsToday ?? 0);
+    if (statUniqueDayHint && data.uniqueVisitorsDayKey) {
+      statUniqueDayHint.textContent = `(${data.uniqueVisitorsDayKey})`;
+    } else if (statUniqueDayHint) {
+      statUniqueDayHint.textContent = '';
+    }
     statCron.textContent = String(data.healthPingsCron ?? 0);
   } catch (_) {
     statPageVisits.textContent = '—';
     statUnique.textContent = '—';
+    if (statUniqueToday) statUniqueToday.textContent = '—';
+    if (statUniqueDayHint) statUniqueDayHint.textContent = '';
     statCron.textContent = '—';
     if (statsErrorEl) {
       statsErrorEl.textContent = 'Помилка мережі або не той URL.';
