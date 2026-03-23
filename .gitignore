@@ -5,4 +5,6 @@ node_modules/
 
 # Журнал присутніх (Excel; оновлюється з адмінки)
 ТБА-35 test.xlsx
+ТБА-35 test (2).xlsx
 ~$*.xlsx
+*backup-before-*.xlsx

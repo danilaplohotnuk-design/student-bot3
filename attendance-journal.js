@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import XLSX from 'xlsx';
+import XlsxPopulate from 'xlsx-populate';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,12 +98,25 @@ export function normalizeDateToIso(raw) {
     const d = +m[3];
     if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return `${y}-${pad2(mo)}-${pad2(d)}`;
   }
-  m = compact.match(/^(\d{1,2})[\/.,](\d{1,2})[\/.,](\d{2,4})$/);
+  m = compact.match(/^(\d{1,2})([\/.,])(\d{1,2})\2(\d{2,4})$/);
   if (m) {
-    const d = +m[1];
-    const mo = +m[2];
-    let y = +m[3];
+    let a = +m[1];
+    const sep = m[2];
+    let b = +m[3];
+    let y = +m[4];
     if (y < 100) y += 2000;
+    // Для "/" у цьому файлі часто формат m/d/yy; для "." зазвичай d.m.yy.
+    if (sep === '/') {
+      const mo = a;
+      const d = b;
+      if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return `${y}-${pad2(mo)}-${pad2(d)}`;
+      const mo2 = b;
+      const d2 = a;
+      if (mo2 >= 1 && mo2 <= 12 && d2 >= 1 && d2 <= 31) return `${y}-${pad2(mo2)}-${pad2(d2)}`;
+      return null;
+    }
+    const d = a;
+    const mo = b;
     if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return `${y}-${pad2(mo)}-${pad2(d)}`;
   }
   return null;
@@ -116,12 +130,13 @@ function normKey(s) {
 }
 
 function presentToLetter(present) {
+  if (present == null || present === '') return ' ';
   if (present === false || present === 'false' || present === 0 || present === '0') return 'н';
-  if (present === true || present === 'true' || present === 1 || present === '1') return 'п';
+  if (present === true || present === 'true' || present === 1 || present === '1') return ' ';
   const s = String(present ?? '').trim().toLowerCase();
-  if (s === 'п' || s === 'p' || s === 'так' || s === '+') return 'п';
+  if (s === 'п' || s === 'p' || s === 'так' || s === '+') return ' ';
   if (s === 'н' || s === 'n' || s === 'ні' || s === '-') return 'н';
-  if (s === 'так' || s === 'yes') return 'п';
+  if (s === 'так' || s === 'yes') return ' ';
   if (s === 'ні' || s === 'no') return 'н';
   return 'н';
 }
@@ -156,20 +171,25 @@ function getCellValue(ws, r, c) {
   return '';
 }
 
-function setCell(ws, r, c, v) {
+function getCellValueRaw(ws, r, c) {
   const addr = XLSX.utils.encode_cell({ r, c });
-  const str = String(v);
-  ws[addr] = { t: 's', v: str };
-  if (!ws['!ref']) {
-    ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r, c } });
-  } else {
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    if (r > range.e.r) range.e.r = r;
-    if (c > range.e.c) range.e.c = c;
-    if (r < range.s.r) range.s.r = r;
-    if (c < range.s.c) range.s.c = c;
-    ws['!ref'] = XLSX.utils.encode_range(range);
+  const cell = ws[addr];
+  if (!cell) return '';
+  if (cell.w != null) return String(cell.w).trim();
+  if (cell.v != null) return String(cell.v).trim();
+  return '';
+}
+
+async function writeCellsPreserveStyle(filePath, sheetName, updates) {
+  const wb = await XlsxPopulate.fromFileAsync(filePath);
+  const ws = wb.sheet(sheetName);
+  if (!ws) throw new Error('Аркуш не знайдено');
+  for (const u of updates) {
+    const cell = ws.cell(u.rowIndex + 1, u.columnIndex + 1);
+    // Only value changes. Existing border/fill/alignment remain untouched.
+    cell.value(String(u.letter ?? ''));
   }
+  await wb.toFileAsync(filePath);
 }
 
 /** Зберегти .xlsx на сервер (після завантаження з адмінки) */
@@ -197,30 +217,64 @@ export function loadJournalWorkbook() {
       'Файл журналу не знайдено. Завантажте «ТБА-35 test.xlsx» кнопкою «Відправити Excel на сервер» у журналі або покладіть файл у корінь проєкту / задайте ATTENDANCE_JOURNAL_PATH у змінних середовища.',
     );
   }
-  const wb = XLSX.readFile(p, { cellDates: true });
+  const wb = XLSX.readFile(p, { cellDates: true, cellStyles: true });
   return { wb, path: p };
 }
 
-export function getTargetSheetName(wb) {
-  const env = process.env.ATTENDANCE_JOURNAL_SHEET?.trim();
-  if (env && wb.SheetNames.includes(env)) return env;
-  if (wb.SheetNames.includes('бакалавр')) return 'бакалавр';
-  return wb.SheetNames[0];
+export function getAvailableJournalSheets(wb) {
+  const preferred = ['бакалавр', 'київ', 'львів'];
+  const lower = new Map(wb.SheetNames.map((n) => [n.toLowerCase(), n]));
+  const out = [];
+  for (const p of preferred) {
+    const actual = lower.get(p);
+    if (actual) out.push(actual);
+  }
+  if (!out.length && wb.SheetNames.length) out.push(wb.SheetNames[0]);
+  return out;
 }
 
-/** Заголовок заняття над колонкою (рядки 1–3 Excel) */
+export function getTargetSheetName(wb, requestedSheet) {
+  const available = getAvailableJournalSheets(wb);
+  const req = String(requestedSheet || '').trim();
+  if (req) {
+    const hit = available.find((s) => s.toLowerCase() === req.toLowerCase());
+    if (hit) return hit;
+    throw new Error(`Аркуш «${req}» не знайдено`);
+  }
+  const env = process.env.ATTENDANCE_JOURNAL_SHEET?.trim();
+  if (env) {
+    const byEnv = available.find((s) => s.toLowerCase() === env.toLowerCase());
+    if (byEnv) return byEnv;
+  }
+  return available[0];
+}
+
+/** Рядок дат: лише день тижня (без числа) — окрема колонка перед першою датою дня */
+function isWeekdayOnlyMarker(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return false;
+  if (normalizeDateToIso(s)) return false;
+  return /^(Пн|Вт|Ср|Чт|Пт|Сб|Нд)$/i.test(s);
+}
+
+/**
+ * Назва пари: один рядок (рядок предмета зазвичай на 2 вище за рядок дат у шаблоні).
+ * Не склеюємо кілька рядків через « · », щоб не дублювати предмети з об’єднаних клітинок.
+ */
 function buildClassLabel(ws, colIndex) {
   const dateRow = getDateRowIndex();
-  const bits = [];
-  for (let r = 0; r < dateRow; r++) {
-    const v = getCellValue(ws, r, colIndex);
-    if (v) bits.push(v);
-    if (colIndex > 0) {
-      const v2 = getCellValue(ws, r, colIndex - 1);
-      if (v2 && !bits.includes(v2)) bits.push(v2);
+  const subjectRow = Math.max(0, dateRow - 2);
+  let v = getCellValue(ws, subjectRow, colIndex);
+  if (!v) {
+    for (let r = 0; r < dateRow; r++) {
+      v = getCellValue(ws, r, colIndex);
+      if (v) break;
     }
   }
-  const s = [...new Set(bits)].join(' · ').slice(0, 500);
+  const s = String(v || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 500);
   return s || `Колонка ${colIndex + 1}`;
 }
 
@@ -251,21 +305,51 @@ function isoSameDayMonth(a, b) {
 function findDateColumnsInner(ws, isoDate, dayMonthOnly) {
   const { minC, maxC } = getScanColumnBounds();
   const dateRow = getDateRowIndex();
-  const seen = new Set();
-  const out = [];
+  const anchors = [];
   for (let c = minC; c <= maxC; c++) {
-    const raw = getCellValue(ws, dateRow, c);
+    // Date row in this workbook usually has one explicit date per day.
+    const raw = getCellValueRaw(ws, dateRow, c);
     const iso = normalizeDateToIso(raw);
     let match = iso === isoDate;
     if (!match && dayMonthOnly && iso) {
       match = isoSameDayMonth(iso, isoDate);
     }
-    if (match && !seen.has(c)) {
-      seen.add(c);
-      out.push({
-        columnIndex: c,
-        pairLabel: buildClassLabel(ws, c),
-      });
+    if (match) anchors.push(c);
+  }
+  const seen = new Set();
+  const out = [];
+  for (const anchor of anchors) {
+    const pushIfPair = (col) => {
+      if (seen.has(col)) return;
+      let label = buildClassLabel(ws, col);
+      if (/^Колонка\s+\d+$/i.test(String(label || '').trim())) {
+        label = `Заняття (кол. ${col + 1})`;
+      }
+      seen.add(col);
+      out.push({ columnIndex: col, pairLabel: label });
+    };
+    // Колонка з «Пн»/«Вт» без дати — перша пара дня; дата стоїть у наступній колонці
+    const prefix = [];
+    let c0 = anchor - 1;
+    while (c0 >= minC) {
+      const t = String(getCellValueRaw(ws, dateRow, c0) || '').trim();
+      if (isWeekdayOnlyMarker(t)) {
+        prefix.push(c0);
+        c0 -= 1;
+      } else {
+        break;
+      }
+    }
+    prefix.sort((a, b) => a - b);
+    for (const c of prefix) {
+      pushIfPair(c);
+    }
+    pushIfPair(anchor);
+    // Include subsequent columns for the same day until next non-empty date-row marker.
+    for (let c = anchor + 1; c <= maxC; c++) {
+      const marker = String(getCellValueRaw(ws, dateRow, c) || '').trim();
+      if (marker) break;
+      pushIfPair(c);
     }
   }
   return out;
@@ -275,6 +359,12 @@ export function findDateColumns(ws, isoDate) {
   const full = findDateColumnsInner(ws, isoDate, false);
   if (full.length) return full;
   return findDateColumnsInner(ws, isoDate, true);
+}
+
+/** Чи колонка входить у список пар для цієї дати (у т.ч. колонка лише з «Пн»/«Вт» без числа) */
+function columnBelongsToDate(ws, colIndex, isoDate) {
+  const cols = findDateColumns(ws, isoDate);
+  return cols.some((x) => x.columnIndex === colIndex);
 }
 
 function findStudentRowByName(ws, name) {
@@ -297,10 +387,10 @@ function findStudentRowByName(ws, name) {
 }
 
 /** Дані для адмінки: дата → пари (колонки) з Excel + студенти з відмітками */
-export function getMatrixDayData(isoDate) {
+export function getMatrixDayData(isoDate, sheetName) {
   const { wb } = loadJournalWorkbook();
-  const sheetName = getTargetSheetName(wb);
-  const ws = wb.Sheets[sheetName];
+  const resolvedSheetName = getTargetSheetName(wb, sheetName);
+  const ws = wb.Sheets[resolvedSheetName];
   if (!ws) throw new Error('Аркуш журналу не знайдено');
   const students = listMatrixStudents(ws);
   const dateCols = findDateColumns(ws, isoDate);
@@ -314,14 +404,15 @@ export function getMatrixDayData(isoDate) {
         name: s.name,
         rowIndex: s.rowIndex,
         excelRow: s.excelRow,
-        present: letter === 'п',
+        present: letter !== 'н',
         letter: letter || '',
       };
     }),
   }));
   return {
     format: 'matrix',
-    sheetName,
+    sheetName: resolvedSheetName,
+    sheets: getAvailableJournalSheets(wb),
     date: isoDate,
     pairs,
     students,
@@ -330,43 +421,41 @@ export function getMatrixDayData(isoDate) {
   };
 }
 
-/** Запис «п»/«н» у клітинку на перетині студента та колонки дати */
-export function writeMatrixAttendance({ dateIso, columnIndex, fullName, present }) {
+export async function writeMatrixAttendanceBatch({ dateIso, columnIndex, sheetName, items }) {
+  if (!Array.isArray(items) || !items.length) {
+    throw new Error('Потрібен непорожній список items');
+  }
   const col = parseInt(columnIndex, 10);
   if (!Number.isFinite(col) || col < 0) throw new Error('Некоректний індекс колонки');
-  const letter = presentToLetter(present);
-  const name = typeof fullName === 'string' ? fullName.trim().slice(0, 200) : '';
-  if (!name) throw new Error('Потрібне ПІБ');
   const dIso = normalizeDateToIso(dateIso) || String(dateIso || '').trim();
-  if (!dIso || !/^\d{4}-\d{2}-\d{2}$/.test(dIso)) {
-    throw new Error('Некоректна дата');
-  }
+  if (!dIso || !/^\d{4}-\d{2}-\d{2}$/.test(dIso)) throw new Error('Некоректна дата');
 
   const { wb, path: p } = loadJournalWorkbook();
-  const sheetName = getTargetSheetName(wb);
-  const ws = wb.Sheets[sheetName];
+  const resolvedSheetName = getTargetSheetName(wb, sheetName);
+  const ws = wb.Sheets[resolvedSheetName];
   if (!ws) throw new Error('Аркуш не знайдено');
 
-  const cellRaw = getCellValue(ws, getDateRowIndex(), col);
-  const cellDate = normalizeDateToIso(cellRaw);
-  const dateOk = cellDate === dIso || (cellDate && isoSameDayMonth(cellDate, dIso));
-  if (!dateOk) {
+  if (!columnBelongsToDate(ws, col, dIso)) {
     throw new Error('Дата в обраній колонці не збігається з обраною датою');
   }
 
-  const rowIdx = findStudentRowByName(ws, name);
-  if (rowIdx < 0) {
-    throw new Error('Студента не знайдено в колонці «Прізвище та ініціали»');
+  const updates = [];
+  for (const item of items) {
+    const fullName = typeof item?.fullName === 'string' ? item.fullName.trim().slice(0, 200) : '';
+    if (!fullName) continue;
+    const rowIdx = findStudentRowByName(ws, fullName);
+    if (rowIdx < 0) continue;
+    updates.push({ rowIndex: rowIdx, columnIndex: col, letter: presentToLetter(item.present) });
   }
-
-  setCell(ws, rowIdx, col, letter);
-  XLSX.writeFile(wb, p);
-
+  if (updates.length) {
+    await writeCellsPreserveStyle(p, resolvedSheetName, updates);
+  }
   const mtime = fs.statSync(p).mtimeMs;
   return {
     ok: true,
     format: 'matrix',
-    sheetName,
+    sheetName: resolvedSheetName,
+    sheets: getAvailableJournalSheets(wb),
     fileName: ATTENDANCE_JOURNAL_FILENAME,
     updatedAt: Math.round(mtime),
     rows: [],
@@ -375,62 +464,21 @@ export function writeMatrixAttendance({ dateIso, columnIndex, fullName, present 
 }
 
 /** Сумарна інформація після зміни */
-export function readJournalRows() {
+export function readJournalRows(sheetName) {
   const { wb, path: p } = loadJournalWorkbook();
-  const sheetName = getTargetSheetName(wb);
-  const ws = wb.Sheets[sheetName];
+  const resolvedSheetName = getTargetSheetName(wb, sheetName);
+  const ws = wb.Sheets[resolvedSheetName];
   const students = ws ? listMatrixStudents(ws) : [];
   const mtime = fs.statSync(p).mtimeMs;
   return {
     format: 'matrix',
     rows: [],
-    sheetName,
+    sheetName: resolvedSheetName,
+    sheets: getAvailableJournalSheets(wb),
     fileName: ATTENDANCE_JOURNAL_FILENAME,
     updatedAt: Math.round(mtime),
     studentCount: students.length,
   };
-}
-
-/**
- * Ручне додавання: знайти колонку за датою (+ опційно фрагмент назви пари) і записати клітинку
- */
-export function appendJournalRow({ date, fullName, present, pair, columnIndex }) {
-  const dIso = normalizeDateToIso(date) || String(date || '').trim();
-  if (!dIso) throw new Error('Потрібні поля date та fullName');
-  const n = typeof fullName === 'string' ? fullName.trim().slice(0, 200) : '';
-  if (!n) throw new Error('Потрібні поля date та fullName');
-
-  if (columnIndex != null && columnIndex !== '') {
-    return writeMatrixAttendance({
-      dateIso: dIso,
-      columnIndex,
-      fullName: n,
-      present,
-    });
-  }
-
-  const { wb } = loadJournalWorkbook();
-  const sheetName = getTargetSheetName(wb);
-  const ws = wb.Sheets[sheetName];
-  if (!ws) throw new Error('Аркуш не знайдено');
-
-  const cols = findDateColumns(ws, dIso);
-  if (!cols.length) throw new Error('У рядку дат немає цієї дати — перевірте файл Excel');
-  let chosen = cols[0];
-  const pl = typeof pair === 'string' ? pair.trim() : '';
-  if (pl && cols.length > 1) {
-    const hit = cols.find(
-      (c) =>
-        normKey(c.pairLabel).includes(normKey(pl)) || normKey(pl).includes(normKey(c.pairLabel)),
-    );
-    if (hit) chosen = hit;
-  }
-  return writeMatrixAttendance({
-    dateIso: dIso,
-    columnIndex: chosen.columnIndex,
-    fullName: n,
-    present,
-  });
 }
 
 export function getJournalFileBuffer() {

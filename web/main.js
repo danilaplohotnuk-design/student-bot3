@@ -1836,7 +1836,7 @@ function isImportantPageVisible() {
 function hideAttendanceJournalPage() {
   const el = document.getElementById('attendance-journal-page');
   if (el) el.hidden = true;
-  closeAttendanceJournalPairModal();
+  closeAttendanceJournalPairModal(true);
 }
 
 function isAttendanceJournalPageVisible() {
@@ -1999,6 +1999,40 @@ async function fetchAdminReminderFull() {
   } catch (_) {}
 }
 
+/** Видалення «Важливо» на сервері (файл на диску / DATA_DIR на Render) */
+async function postReminderDelete(action, index) {
+  if (!storedAdminPassword || !adminMode) return false;
+  try {
+    const body = { action };
+    if (typeof index === 'number' && Number.isFinite(index)) body.index = index;
+    const res = await fetch('/api/admin/reminder/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-password': storedAdminPassword,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      showToast(data.error || 'Не вдалося видалити');
+      return false;
+    }
+    reminderText = typeof data.text === 'string' ? data.text : '';
+    const ts = Number(data.updatedAt);
+    reminderUpdatedAt = Number.isFinite(ts) && ts > 0 ? ts : 0;
+    reminderHistory = Array.isArray(data.history) ? data.history : [];
+    importantCardEnterIndex = 0;
+    renderImportantCurrentDisplay();
+    renderImportantHistoryCards();
+    syncReminderTrigger();
+    return true;
+  } catch (_) {
+    showToast('Помилка мережі');
+    return false;
+  }
+}
+
 /** Блок «збережений текст» на сторінці Важливо (поле вводу окремо очищається після збереження) */
 function renderImportantCurrentDisplay() {
   const wrap = document.getElementById('important-current-display');
@@ -2033,14 +2067,20 @@ function renderImportantHistoryCards() {
     return;
   }
   el.innerHTML = reminderHistory
-    .map((h) => {
+    .map((h, i) => {
       const d = h.updatedAt ? new Date(h.updatedAt) : null;
       const dateStr =
         d && !Number.isNaN(d.getTime())
           ? d.toLocaleString('uk-UA', { dateStyle: 'medium', timeStyle: 'short' })
           : '—';
       const body = String(h.text || '').trim() || '—';
-      return `<article class="important-history-card"><p class="important-history-card__meta">${escapeHtml(dateStr)}</p><p class="important-history-card__text">${escapeHtml(body).replace(/\n/g, '<br>')}</p></article>`;
+      return `<article class="important-history-card" data-history-index="${i}">
+        <div class="important-history-card__head">
+          <p class="important-history-card__meta">${escapeHtml(dateStr)}</p>
+          <button type="button" class="important-history-card__del" data-history-index="${i}" title="Видалити запис" aria-label="Видалити запис з історії">×</button>
+        </div>
+        <p class="important-history-card__text">${escapeHtml(body).replace(/\n/g, '<br>')}</p>
+      </article>`;
     })
     .join('');
   el.querySelectorAll('.important-history-card').forEach((card) => stampImportantCardEnter(card, 'history'));
@@ -2085,31 +2125,13 @@ function showImportantPage() {
 function renderAttendanceJournalTable(rows, meta) {
   const wrap = document.getElementById('attendance-journal-table-wrap');
   if (!wrap) return;
-  if (meta && meta.format === 'matrix') {
-    const sheet = escapeHtml(meta.sheetName || '');
-    const n = Number.isFinite(Number(meta.studentCount)) ? Number(meta.studentCount) : 0;
-    wrap.innerHTML = `<p class="attendance-journal-page__empty" id="attendance-journal-empty">Матричний журнал (лист «${sheet}»): у списку <strong>${n}</strong> студентів (колонка ПІБ). Дати в рядку 4 (AZ…MM, дд.мм.рррр); відмітки «п»/«н» — на перетині рядка студента та колонки заняття.</p>`;
-    return;
-  }
-  if (!rows.length) {
-    wrap.innerHTML =
-      '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Поки немає даних. Завантажте файл журналу або відкрийте пошук по даті вище.</p>';
-    return;
-  }
-  const last = rows.slice(-40).reverse();
-  const thead =
-    '<thead><tr><th>Дата</th><th>Пара</th><th>ПІБ</th><th>Присутність</th><th>Примітка</th></tr></thead>';
-  const tbody = last
-    .map((r) => {
-      const d = escapeHtml(String(r['Дата'] ?? ''));
-      const pair = escapeHtml(String(r['Пара'] ?? ''));
-      const n = escapeHtml(String(r['ПІБ'] ?? ''));
-      const p = escapeHtml(String(r['Присутність'] ?? ''));
-      const note = escapeHtml(String(r['Примітка'] ?? ''));
-      return `<tr><td>${d}</td><td>${pair}</td><td>${n}</td><td>${p}</td><td>${note}</td></tr>`;
-    })
-    .join('');
-  wrap.innerHTML = `<table class="attendance-journal-page__table" aria-label="Записи журналу">${thead}<tbody>${tbody}</tbody></table>`;
+  const sheet = escapeHtml((meta && meta.sheetName) || '—');
+  const n = Number.isFinite(Number(meta && meta.studentCount)) ? Number(meta.studentCount) : 0;
+  const upd = Number(meta && meta.updatedAt);
+  const updated = Number.isFinite(upd)
+    ? new Date(upd).toLocaleString('uk-UA', { dateStyle: 'short', timeStyle: 'short' })
+    : '—';
+  wrap.innerHTML = `<p class="attendance-journal-page__empty" id="attendance-journal-empty">Лист «${sheet}». Студентів у списку: <strong>${n}</strong>. Останнє оновлення файлу: ${escapeHtml(updated)}.</p>`;
 }
 
 async function loadAttendanceJournalData() {
@@ -2118,13 +2140,14 @@ async function loadAttendanceJournalData() {
   wrap.innerHTML =
     '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Завантаження…</p>';
   try {
-    const res = await fetch('/api/admin/attendance', {
+    const sheetSel = document.getElementById('attendance-journal-sheet-select');
+    const sheet = sheetSel && sheetSel.value ? sheetSel.value : '';
+    const res = await fetch(`/api/admin/attendance${sheet ? `?sheet=${encodeURIComponent(sheet)}` : ''}`, {
       headers: { 'x-admin-password': storedAdminPassword },
     });
     if (!res.ok) throw new Error('fail');
     const data = await res.json();
-    const rows = Array.isArray(data.rows) ? data.rows : [];
-    renderAttendanceJournalTable(rows, data);
+    renderAttendanceJournalTable([], data);
   } catch (_) {
     wrap.innerHTML =
       '<p class="attendance-journal-page__empty" id="attendance-journal-empty">Не вдалося завантажити журнал.</p>';
@@ -2134,10 +2157,29 @@ async function loadAttendanceJournalData() {
 /** Кеш GET /api/admin/attendance/day */
 let attendanceJournalDayCache = null;
 
-/** Контекст модалки: { dateIso, pairLabel, columnIndex, names, title, isUnpaired } */
+/** Контекст модалки: { sheetName, dateIso, pairLabel, columnIndex, names, title } */
 let attendanceJournalPairModalCtx = null;
+const attendanceJournalDraftMap = new Map();
 
-function closeAttendanceJournalPairModal() {
+function attendanceDraftKey(ctx, fullName) {
+  return `${ctx.sheetName}|${ctx.dateIso}|${ctx.columnIndex}|${fullName}`;
+}
+
+function getDraftPresent(ctx, fullName, fallbackPresent) {
+  const key = attendanceDraftKey(ctx, fullName);
+  return attendanceJournalDraftMap.has(key) ? attendanceJournalDraftMap.get(key) : fallbackPresent;
+}
+
+function clearDraftForContext(ctx) {
+  if (!ctx) return;
+  const pref = `${ctx.sheetName}|${ctx.dateIso}|${ctx.columnIndex}|`;
+  for (const k of attendanceJournalDraftMap.keys()) {
+    if (k.startsWith(pref)) attendanceJournalDraftMap.delete(k);
+  }
+}
+
+function closeAttendanceJournalPairModal(dropDraft = false) {
+  if (dropDraft) clearDraftForContext(attendanceJournalPairModalCtx);
   const ov = document.getElementById('attendance-journal-pair-overlay');
   if (ov) {
     ov.hidden = true;
@@ -2155,7 +2197,7 @@ function renderAttendanceJournalPairsList(data) {
   }
   if (!data.pairs.length) {
     wrap.innerHTML =
-      '<p class="attendance-journal-page__empty">У рядку 4 (колонки AZ…MM, формат дд.мм.рррр) немає цієї дати — перевірте рік у календарі / у файлі або оберіть інший день.</p>';
+      '<p class="attendance-journal-page__empty">На цю дату в обраному аркуші немає колонок пар.</p>';
     wrap.hidden = false;
     return;
   }
@@ -2178,14 +2220,6 @@ function renderAttendanceJournalPairsList(data) {
       </button>`,
     );
   });
-  if (data.unpaired && data.unpaired.length) {
-    parts.push(
-      `<button type="button" class="attendance-journal-pair-chip" data-pair-unpaired="1">
-        <span class="attendance-journal-pair-chip__time">Без колонки «Пара»</span>
-        Записи без прив’язки до пари (${data.unpaired.length})
-      </button>`,
-    );
-  }
   wrap.innerHTML = parts.join('');
 }
 
@@ -2195,16 +2229,15 @@ function openAttendanceJournalPairModal(ctx) {
   const titleEl = document.getElementById('attendance-journal-pair-dialog-title');
   const listEl = document.getElementById('attendance-journal-pair-list');
   const emptyEl = document.getElementById('attendance-journal-pair-empty');
-  const nameInput = document.getElementById('attendance-journal-pair-new-name');
   if (!ov || !titleEl || !listEl || !emptyEl) return;
-  if (nameInput) nameInput.value = '';
   titleEl.textContent = ctx.title || ctx.pairLabel || 'Пара';
   const names = Array.isArray(ctx.names) ? ctx.names : [];
   emptyEl.hidden = names.length > 0;
   listEl.innerHTML = '';
   names.forEach((entry) => {
     const name = typeof entry === 'string' ? entry : entry.name;
-    const present = typeof entry === 'object' && entry ? !!entry.present : false;
+    const presentFromFile = typeof entry === 'object' && entry ? !!entry.present : false;
+    const present = getDraftPresent(ctx, name, presentFromFile);
     const row = document.createElement('div');
     row.className = 'attendance-journal-pair-row';
     const nameSpan = document.createElement('span');
@@ -2214,9 +2247,11 @@ function openAttendanceJournalPairModal(ctx) {
     label.className = 'attendance-journal-switch';
     const input = document.createElement('input');
     input.type = 'checkbox';
-    input.checked = present;
+    // Opposite visual position: checked means "absent".
+    input.checked = !present;
     input.addEventListener('change', () => {
-      onAttendanceJournalToggle(name, input.checked);
+      const key = attendanceDraftKey(ctx, name);
+      attendanceJournalDraftMap.set(key, !input.checked);
     });
     const track = document.createElement('span');
     track.className = 'attendance-journal-switch__track';
@@ -2233,72 +2268,46 @@ function openAttendanceJournalPairModal(ctx) {
   ov.setAttribute('aria-hidden', 'false');
 }
 
-async function refreshAttendanceJournalModalAfterSave() {
-  const prev = attendanceJournalPairModalCtx;
-  if (!prev || !storedAdminPassword) return;
-  const dateIso = prev.dateIso;
-  const pairLabel = prev.pairLabel;
-  const isUnpaired = prev.isUnpaired;
-  try {
-    const res = await fetch(`/api/admin/attendance/day?date=${encodeURIComponent(dateIso)}`, {
-      headers: { 'x-admin-password': storedAdminPassword },
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!data.ok) return;
-    attendanceJournalDayCache = data;
-    renderAttendanceJournalPairsList(data);
-    let nextNames = [];
-    let title = attendanceJournalPairModalCtx.title;
-    if (isUnpaired) {
-      nextNames = Array.isArray(data.unpaired) ? data.unpaired : [];
-      title = 'Записи без колонки «Пара»';
-    } else {
-      const colIdx = prev.columnIndex;
-      const match = data.pairs.find((p) => p.columnIndex === colIdx);
-      nextNames = match && Array.isArray(match.names) ? match.names : [];
-      if (match && match.pairLabel) title = match.pairLabel;
-    }
-    openAttendanceJournalPairModal({
-      dateIso,
-      pairLabel: prev.pairLabel,
-      columnIndex: prev.columnIndex,
-      names: nextNames,
-      title,
-      isUnpaired,
-    });
-  } catch (_) {}
-}
-
-async function onAttendanceJournalToggle(fullName, present) {
-  if (!attendanceJournalPairModalCtx || !storedAdminPassword) return;
-  const { dateIso, columnIndex } = attendanceJournalPairModalCtx;
-  if (columnIndex == null || Number.isNaN(Number(columnIndex))) {
-    showToast('Немає колонки заняття');
+async function saveAttendanceJournalCurrentPair() {
+  const ctx = attendanceJournalPairModalCtx;
+  if (!ctx || !storedAdminPassword) return;
+  const items = [];
+  for (const entry of Array.isArray(ctx.names) ? ctx.names : []) {
+    const fullName = typeof entry === 'string' ? entry : entry?.name;
+    if (!fullName) continue;
+    const key = attendanceDraftKey(ctx, fullName);
+    if (!attendanceJournalDraftMap.has(key)) continue;
+    items.push({ fullName, present: attendanceJournalDraftMap.get(key) });
+  }
+  if (!items.length) {
+    closeAttendanceJournalPairModal(false);
+    showToast('Немає змін для збереження');
     return;
   }
   try {
-    const res = await fetch('/api/admin/attendance/set', {
+    const res = await fetch('/api/admin/attendance/save', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-admin-password': storedAdminPassword,
       },
       body: JSON.stringify({
-        dateIso,
-        columnIndex,
-        fullName,
-        present,
+        sheetName: ctx.sheetName,
+        dateIso: ctx.dateIso,
+        columnIndex: ctx.columnIndex,
+        items,
       }),
     });
     const data = await res.json().catch(() => ({}));
-    if (res.ok && data.ok) {
-      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : [], data);
-      await refreshAttendanceJournalModalAfterSave();
-      showToast('Збережено в Excel');
-    } else {
+    if (!res.ok || !data.ok) {
       showToast(data.error || 'Не вдалося зберегти');
+      return;
     }
+    clearDraftForContext(ctx);
+    closeAttendanceJournalPairModal(false);
+    await loadAttendanceJournalData();
+    await loadAttendanceJournalDay();
+    showToast('Зміни збережено');
   } catch (_) {
     showToast('Помилка мережі');
   }
@@ -2306,10 +2315,11 @@ async function onAttendanceJournalToggle(fullName, present) {
 
 async function loadAttendanceJournalDay() {
   const smartEl = document.getElementById('attendance-journal-smart-date');
+  const sheetEl = document.getElementById('attendance-journal-sheet-select');
   const msgEl = document.getElementById('attendance-journal-day-msg');
-  const formDate = document.getElementById('attendance-journal-date');
-  if (!smartEl || !storedAdminPassword) return;
+  if (!smartEl || !sheetEl || !storedAdminPassword) return;
   const date = smartEl.value;
+  const sheet = sheetEl.value || 'бакалавр';
   if (!date) {
     if (msgEl) {
       msgEl.textContent = 'Оберіть дату.';
@@ -2322,11 +2332,13 @@ async function loadAttendanceJournalDay() {
     msgEl.hidden = true;
     msgEl.textContent = '';
   }
-  if (formDate) formDate.value = date;
   try {
-    const res = await fetch(`/api/admin/attendance/day?date=${encodeURIComponent(date)}`, {
+    const res = await fetch(
+      `/api/admin/attendance/day?date=${encodeURIComponent(date)}&sheet=${encodeURIComponent(sheet)}`,
+      {
       headers: { 'x-admin-password': storedAdminPassword },
-    });
+      },
+    );
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (msgEl) {
@@ -2339,9 +2351,9 @@ async function loadAttendanceJournalDay() {
     attendanceJournalDayCache = data;
     renderAttendanceJournalPairsList(data);
     if (msgEl) {
-      const sheet = data.sheetName || '—';
+      const sheetNameLabel = data.sheetName || '—';
       const studs = Array.isArray(data.students) ? data.students.length : 0;
-      msgEl.textContent = `Лист «${sheet}»: занять на цю дату в таблиці — ${data.pairs.length}. Студентів у колонці ПІБ — ${studs}.`;
+      msgEl.textContent = `Лист «${sheetNameLabel}»: занять на цю дату в таблиці — ${data.pairs.length}. Студентів у колонці ПІБ — ${studs}.`;
       msgEl.className = 'attendance-journal-page__msg attendance-journal-page__msg--ok';
       msgEl.hidden = false;
     }
@@ -2385,16 +2397,10 @@ async function showAttendanceJournalPage() {
   try {
     window.scrollTo(0, 0);
   } catch (_) {}
-  const dateEl = document.getElementById('attendance-journal-date');
+  const sheetEl = document.getElementById('attendance-journal-sheet-select');
   const smartDateEl = document.getElementById('attendance-journal-smart-date');
-  if (dateEl && !dateEl.value) {
-    try {
-      dateEl.value = new Date().toISOString().slice(0, 10);
-    } catch (_) {}
-  }
-  if (smartDateEl && dateEl && dateEl.value) {
-    smartDateEl.value = dateEl.value;
-  } else if (smartDateEl && !smartDateEl.value) {
+  if (sheetEl && !sheetEl.value) sheetEl.value = 'бакалавр';
+  if (smartDateEl && !smartDateEl.value) {
     try {
       smartDateEl.value = new Date().toISOString().slice(0, 10);
     } catch (_) {}
@@ -2439,7 +2445,7 @@ function scheduleSubpageEscapeHandler(e) {
   if (isAttendanceJournalPageVisible()) {
     const ajPairOv = document.getElementById('attendance-journal-pair-overlay');
     if (ajPairOv && !ajPairOv.hidden) {
-      closeAttendanceJournalPairModal();
+      closeAttendanceJournalPairModal(true);
       e.preventDefault();
       return;
     }
@@ -3861,62 +3867,6 @@ document.getElementById('admin-nav-journal')?.addEventListener('click', () => {
   showAttendanceJournalPage();
 });
 
-document.getElementById('attendance-journal-form')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  if (!adminMode || !storedAdminPassword) return;
-  const msg = document.getElementById('attendance-journal-form-msg');
-  const dateEl = document.getElementById('attendance-journal-date');
-  const nameEl = document.getElementById('attendance-journal-name');
-  const pairEl = document.getElementById('attendance-journal-pair');
-  const noteEl = document.getElementById('attendance-journal-note');
-  const presentEl = document.querySelector('input[name="attendance-present"]:checked');
-  if (!dateEl || !nameEl) return;
-  const present = presentEl && presentEl.value === 'yes';
-  if (msg) {
-    msg.hidden = true;
-    msg.textContent = '';
-    msg.className = 'attendance-journal-page__msg';
-  }
-  try {
-    const res = await fetch('/api/admin/attendance/row', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-password': storedAdminPassword,
-      },
-      body: JSON.stringify({
-        date: dateEl.value,
-        fullName: nameEl.value.trim(),
-        present,
-        note: noteEl ? noteEl.value.trim() : '',
-        pair: pairEl ? pairEl.value.trim() : '',
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.ok) {
-      nameEl.value = '';
-      if (noteEl) noteEl.value = '';
-      if (msg) {
-        msg.textContent = 'Запис додано до файлу Excel.';
-        msg.className = 'attendance-journal-page__msg attendance-journal-page__msg--ok';
-        msg.hidden = false;
-      }
-      renderAttendanceJournalTable(Array.isArray(data.rows) ? data.rows : [], data);
-      showToast('Запис збережено в журналі');
-    } else if (msg) {
-      msg.textContent = data.error || 'Не вдалося зберегти';
-      msg.className = 'attendance-journal-page__msg attendance-journal-page__msg--err';
-      msg.hidden = false;
-    }
-  } catch (_) {
-    if (msg) {
-      msg.textContent = 'Помилка мережі';
-      msg.className = 'attendance-journal-page__msg attendance-journal-page__msg--err';
-      msg.hidden = false;
-    }
-  }
-});
-
 document.getElementById('attendance-journal-upload-trigger')?.addEventListener('click', () => {
   if (!adminMode) return;
   document.getElementById('attendance-journal-upload-input')?.click();
@@ -3954,7 +3904,9 @@ document.getElementById('attendance-journal-download-btn')?.addEventListener('cl
       headers: { 'x-admin-password': storedAdminPassword },
     });
     if (!res.ok) {
-      showToast('Не вдалося завантажити файл');
+      const directUrl = `/api/admin/attendance/download?password=${encodeURIComponent(storedAdminPassword)}`;
+      window.open(directUrl, '_blank', 'noopener');
+      showToast('Відкрили посилання для завантаження в браузері');
       return;
     }
     const buf = await res.arrayBuffer();
@@ -3972,7 +3924,9 @@ document.getElementById('attendance-journal-download-btn')?.addEventListener('cl
     setTimeout(() => URL.revokeObjectURL(url), 2500);
     showToast('Файл завантажено');
   } catch (_) {
-    showToast('Помилка завантаження');
+    const directUrl = `/api/admin/attendance/download?password=${encodeURIComponent(storedAdminPassword)}`;
+    window.open(directUrl, '_blank', 'noopener');
+    showToast('Відкрили посилання для завантаження в браузері');
   }
 });
 
@@ -3981,55 +3935,50 @@ document.getElementById('attendance-journal-load-day-btn')?.addEventListener('cl
   loadAttendanceJournalDay();
 });
 
+document.getElementById('attendance-journal-sheet-select')?.addEventListener('change', () => {
+  if (!adminMode) return;
+  loadAttendanceJournalData();
+});
+
 document.getElementById('attendance-journal-pairs-wrap')?.addEventListener('click', (e) => {
-  const unpairedBtn = e.target.closest('[data-pair-unpaired]');
   const idxBtn = e.target.closest('[data-pair-index]');
   if (!attendanceJournalDayCache) return;
-  if (unpairedBtn) {
-    openAttendanceJournalPairModal({
-      dateIso: attendanceJournalDayCache.date,
-      pairLabel: '',
-      names: attendanceJournalDayCache.unpaired || [],
-      title: 'Записи без колонки «Пара»',
-      isUnpaired: true,
-    });
-    return;
-  }
-    if (idxBtn) {
+  if (idxBtn) {
     const i = parseInt(idxBtn.getAttribute('data-pair-index'), 10);
     const p = attendanceJournalDayCache.pairs[i];
     if (!p) return;
     openAttendanceJournalPairModal({
+      sheetName: attendanceJournalDayCache.sheetName,
       dateIso: attendanceJournalDayCache.date,
       pairLabel: p.pairLabel,
       columnIndex: p.columnIndex,
       names: p.names || [],
       title: p.pairLabel,
-      isUnpaired: false,
     });
   }
 });
 
 document.getElementById('attendance-journal-pair-close')?.addEventListener('click', () => {
-  closeAttendanceJournalPairModal();
+  closeAttendanceJournalPairModal(true);
 });
 
 document.getElementById('attendance-journal-pair-overlay')?.addEventListener('click', (e) => {
   if (e.target.id === 'attendance-journal-pair-overlay') {
-    closeAttendanceJournalPairModal();
+    closeAttendanceJournalPairModal(true);
   }
 });
 
-document.getElementById('attendance-journal-pair-add-btn')?.addEventListener('click', async () => {
-  const input = document.getElementById('attendance-journal-pair-new-name');
-  if (!input || !attendanceJournalPairModalCtx || !storedAdminPassword) return;
-  const fullName = input.value.trim();
-  if (!fullName) {
-    showToast('Введіть ПІБ');
-    return;
-  }
-  input.value = '';
-  await onAttendanceJournalToggle(fullName, true);
+document.getElementById('attendance-journal-pair-exit-btn')?.addEventListener('click', () => {
+  closeAttendanceJournalPairModal(true);
+});
+
+document.getElementById('attendance-journal-pair-save-btn')?.addEventListener('click', async () => {
+  await saveAttendanceJournalCurrentPair();
+});
+
+document.getElementById('important-hidden-journal-btn')?.addEventListener('click', () => {
+  if (!adminMode) return;
+  showAttendanceJournalPage();
 });
 
 document.getElementById('important-editor-save')?.addEventListener('click', async () => {
@@ -4068,6 +4017,52 @@ document.getElementById('important-editor-save')?.addEventListener('click', asyn
     err.textContent = 'Немає зв’язку з сервером';
     err.hidden = false;
   }
+});
+
+document.getElementById('important-delete-current-btn')?.addEventListener('click', async () => {
+  if (!adminMode || !storedAdminPassword) return;
+  const has =
+    typeof reminderText === 'string' && reminderText.trim().length > 0 && reminderUpdatedAt > 0;
+  if (!has) {
+    showToast('Немає поточного повідомлення');
+    return;
+  }
+  if (!confirm('Видалити поточне повідомлення? Історія залишиться.')) return;
+  if (await postReminderDelete('current')) showToast('Поточне видалено');
+});
+
+document.getElementById('important-clear-history-btn')?.addEventListener('click', async () => {
+  if (!adminMode || !storedAdminPassword) return;
+  if (!reminderHistory.length) {
+    showToast('Історія вже порожня');
+    return;
+  }
+  if (!confirm('Очистити всю історію попередніх версій?')) return;
+  if (await postReminderDelete('history')) showToast('Історію очищено');
+});
+
+document.getElementById('important-delete-all-btn')?.addEventListener('click', async () => {
+  if (!adminMode || !storedAdminPassword) return;
+  const hasAny =
+    (typeof reminderText === 'string' && reminderText.trim()) ||
+    (Array.isArray(reminderHistory) && reminderHistory.length);
+  if (!hasAny) {
+    showToast('Немає що видаляти');
+    return;
+  }
+  if (!confirm('Видалити поточне повідомлення та всю історію?')) return;
+  if (await postReminderDelete('all')) showToast('Усе видалено');
+});
+
+document.getElementById('important-page')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.important-history-card__del');
+  if (!btn || !adminMode || !storedAdminPassword) return;
+  const list = document.getElementById('important-history-list');
+  if (!list || !list.contains(btn)) return;
+  e.preventDefault();
+  const idx = parseInt(btn.getAttribute('data-history-index'), 10);
+  if (!Number.isFinite(idx) || !reminderHistory[idx]) return;
+  if (await postReminderDelete('history_item', idx)) showToast('Запис видалено');
 });
 
 registerGlobalSwipeDismiss();

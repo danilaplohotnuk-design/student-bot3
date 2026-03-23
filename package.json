@@ -1,6 +1,6 @@
 {
   "name": "tg-schedule-app",
-  "version": "0.0.41",
+  "version": "0.0.43",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,11 +9,13 @@
     "version:bump": "node scripts/bump-version.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "multer": "^2.1.1",
     "telegraf": "^4.16.3",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "xlsx-populate": "^1.21.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"

@@ -28,7 +28,7 @@
       } catch (e) {}
     })();
   </script>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=0.0.43" />
 </head>
 <body>
   <div class="app-tba-watermark" aria-hidden="true">ТБА</div>
@@ -309,6 +309,14 @@
         <div class="app-header-block">
           <div class="app-header-block__text">
             <h1 class="app-title">Важливо</h1>
+            <button
+              type="button"
+              id="important-hidden-journal-btn"
+              class="important-page__hidden-journal-btn"
+              aria-hidden="true"
+              tabindex="-1"
+              title=""
+            ></button>
             <p class="important-page__lede">
               Для студентів повідомлення показується на головному екрані (кнопка «!») протягом 24 годин після збереження, якщо не опубліковано нове. Нижче — історія версій.
             </p>
@@ -316,6 +324,29 @@
         </div>
       </header>
       <div id="important-current-display" class="important-page__current" aria-live="polite"></div>
+      <div class="important-page__danger-actions" role="group" aria-label="Видалення повідомлень">
+        <button
+          type="button"
+          id="important-delete-current-btn"
+          class="modal-btn modal-btn-secondary important-page__danger-btn"
+        >
+          Видалити поточне
+        </button>
+        <button
+          type="button"
+          id="important-clear-history-btn"
+          class="modal-btn modal-btn-secondary important-page__danger-btn"
+        >
+          Очистити історію
+        </button>
+        <button
+          type="button"
+          id="important-delete-all-btn"
+          class="modal-btn modal-btn-secondary important-page__danger-btn important-page__danger-btn--strong"
+        >
+          Видалити все
+        </button>
+      </div>
       <div class="important-page__editor">
         <label for="important-editor-text" class="important-page__label">Нове повідомлення</label>
         <textarea
@@ -334,14 +365,11 @@
       </section>
     </section>
 
-    <section id="attendance-journal-page" class="attendance-journal-page" hidden aria-label="Журнал присутніх">
+    <section id="attendance-journal-page" class="attendance-journal-page" hidden aria-label="Ведення журналу">
       <header class="attendance-journal-page__header">
         <div class="app-header-block">
           <div class="app-header-block__text">
-            <h1 class="app-title">Журнал присутніх</h1>
-            <p class="app-subtitle attendance-journal-page__subtitle">
-              Матриця як у групі ТБА-35: лист «бакалавр», колонка ПІБ, рядок дат. Якщо на сервері ще немає файлу — натисніть «Відправити Excel на сервер» і оберіть «ТБА-35 test.xlsx» з комп’ютера.
-            </p>
+            <h1 class="app-title">Ведення журналу</h1>
           </div>
         </div>
       </header>
@@ -367,11 +395,17 @@
       </div>
 
       <section class="attendance-journal-page__smart" aria-labelledby="attendance-journal-smart-heading">
-        <h2 id="attendance-journal-smart-heading" class="attendance-journal-page__smart-title">Розумний пошук по даті</h2>
+        <h2 id="attendance-journal-smart-heading" class="attendance-journal-page__smart-title">Налаштування дня</h2>
         <p class="attendance-journal-page__smart-hint">
-          Оберіть дату — у рядку 4 Excel (колонки AZ…MM) дати у форматі дд.мм.рррр; знайдуться відповідні заняття. Якщо рік у файлі інший за рік у календарі — зіставляємо день і місяць. У клітинках — «п» або «н».
+          Спочатку виберіть відділення, потім дату. Після цього з'являться пари на вибраний день.
         </p>
         <div class="attendance-journal-page__smart-row">
+          <label class="attendance-journal-page__label" for="attendance-journal-sheet-select">Відділення</label>
+          <select id="attendance-journal-sheet-select" class="attendance-journal-page__input">
+            <option value="бакалавр">бакалавр</option>
+            <option value="київ">київ</option>
+            <option value="львів">львів</option>
+          </select>
           <label class="attendance-journal-page__label" for="attendance-journal-smart-date">Дата</label>
           <input type="date" id="attendance-journal-smart-date" class="attendance-journal-page__input" />
           <button type="button" id="attendance-journal-load-day-btn" class="modal-btn modal-btn-primary attendance-journal-page__smart-btn">
@@ -395,79 +429,17 @@
           <h3 id="attendance-journal-pair-dialog-title" class="attendance-journal-pair-dialog__title"></h3>
           <div id="attendance-journal-pair-list" class="attendance-journal-pair-list"></div>
           <p id="attendance-journal-pair-empty" class="attendance-journal-page__empty" hidden>
-            У списку студентів (колонка ПІБ) нікого не знайдено — перевірте файл або рядок з ПІБ. Можна додати відмітку через форму нижче.
+            У цьому аркуші не знайдено студентів.
           </p>
-          <div class="attendance-journal-pair-add">
-            <label class="attendance-journal-page__label" for="attendance-journal-pair-new-name">Швидко додати ПІБ для цієї пари</label>
-            <div class="attendance-journal-pair-add__row">
-              <input
-                type="text"
-                id="attendance-journal-pair-new-name"
-                class="attendance-journal-page__input"
-                maxlength="200"
-                placeholder="Прізвище та імʼя"
-                autocomplete="off"
-              />
-              <button type="button" id="attendance-journal-pair-add-btn" class="modal-btn modal-btn-secondary">Додати</button>
-            </div>
+          <div class="attendance-journal-pair-actions">
+            <button type="button" id="attendance-journal-pair-exit-btn" class="modal-btn modal-btn-secondary">Вийти без збереження</button>
+            <button type="button" id="attendance-journal-pair-save-btn" class="modal-btn modal-btn-primary">Зберегти та вийти</button>
           </div>
         </div>
       </div>
 
-      <form id="attendance-journal-form" class="attendance-journal-page__form" autocomplete="off">
-        <div class="attendance-journal-page__row">
-          <label class="attendance-journal-page__label" for="attendance-journal-date">Дата</label>
-          <input type="date" id="attendance-journal-date" class="attendance-journal-page__input" required />
-        </div>
-        <div class="attendance-journal-page__row">
-          <label class="attendance-journal-page__label" for="attendance-journal-pair">Заняття (необовʼязково, якщо кілька колонок на одну дату)</label>
-          <input
-            type="text"
-            id="attendance-journal-pair"
-            class="attendance-journal-page__input"
-            maxlength="400"
-            placeholder="Частина назви з рядків над колонкою (дисципліна / викладач)"
-          />
-        </div>
-        <div class="attendance-journal-page__row">
-          <label class="attendance-journal-page__label" for="attendance-journal-name">ПІБ</label>
-          <input
-            type="text"
-            id="attendance-journal-name"
-            class="attendance-journal-page__input"
-            maxlength="200"
-            placeholder="Прізвище та імʼя"
-            required
-          />
-        </div>
-        <div class="attendance-journal-page__row">
-          <span class="attendance-journal-page__label">Присутність</span>
-          <div class="attendance-journal-page__radios" role="group" aria-label="Присутність">
-            <label class="attendance-journal-page__radio-label">
-              <input type="radio" name="attendance-present" value="yes" checked />
-              Так
-            </label>
-            <label class="attendance-journal-page__radio-label">
-              <input type="radio" name="attendance-present" value="no" />
-              Ні
-            </label>
-          </div>
-        </div>
-        <div class="attendance-journal-page__row">
-          <label class="attendance-journal-page__label" for="attendance-journal-note">Примітка (необовʼязково)</label>
-          <textarea
-            id="attendance-journal-note"
-            class="attendance-journal-page__textarea"
-            rows="2"
-            maxlength="500"
-            placeholder="Короткий коментар…"
-          ></textarea>
-        </div>
-        <button type="submit" class="modal-btn modal-btn-primary attendance-journal-page__submit">Додати до журналу</button>
-        <p id="attendance-journal-form-msg" class="attendance-journal-page__msg" hidden role="status"></p>
-      </form>
       <section class="attendance-journal-page__list-block" aria-labelledby="attendance-journal-list-heading">
-        <h2 id="attendance-journal-list-heading" class="attendance-journal-page__list-title">Стан файлу журналу</h2>
+        <h2 id="attendance-journal-list-heading" class="attendance-journal-page__list-title">Стан файлу</h2>
         <div id="attendance-journal-table-wrap" class="attendance-journal-page__table-wrap">
           <p id="attendance-journal-empty" class="attendance-journal-page__empty">Завантаження…</p>
         </div>
@@ -638,6 +610,6 @@
     </nav>
   </div>
 
-  <script src="main.js"></script>
+  <script src="main.js?v=0.0.43"></script>
 </body>
 </html>

@@ -12,14 +12,20 @@ import { getZoomLink } from './zoom-links.js';
 import { recordPageVisit, recordHealthPing, getStats } from './stats.js';
 import {
   readJournalRows,
-  appendJournalRow,
   getJournalFileBuffer,
   saveJournalFileBuffer,
   ATTENDANCE_JOURNAL_FILENAME,
   normalizeDateToIso,
   getMatrixDayData,
-  writeMatrixAttendance,
+  writeMatrixAttendanceBatch,
 } from './attendance-journal.js';
+import {
+  readReminder,
+  writeReminder,
+  deleteReminderScope,
+  deleteReminderHistoryItem,
+  isSupabaseReminderEnabled,
+} from './reminder-storage.js';
 
 dotenv.config();
 
@@ -47,7 +53,6 @@ function loadVersionInfo() {
 }
 const VERSION_INFO = loadVersionInfo();
 
-const REMINDER_FILE = path.join(__dirname, 'reminder.json');
 const BIRTHDAYS_FILE = path.join(__dirname, 'web', 'birthdays.json');
 
 function validateBirthdayRecord(e) {
@@ -79,45 +84,6 @@ function writeBirthdaysToDisk(birthdays) {
   fs.mkdirSync(path.dirname(BIRTHDAYS_FILE), { recursive: true });
   fs.writeFileSync(BIRTHDAYS_FILE, `${JSON.stringify({ birthdays: sorted }, null, 2)}\n`, 'utf8');
   return sorted;
-}
-
-/** { text, updatedAt, history[] } — history = попередні версії (тільки для адмінки) */
-function readReminderFromDisk() {
-  try {
-    const raw = fs.readFileSync(REMINDER_FILE, 'utf8');
-    const j = JSON.parse(raw);
-    const text = typeof j.text === 'string' ? j.text : '';
-    let updatedAt = Number(j.updatedAt);
-    if (text && (!Number.isFinite(updatedAt) || updatedAt <= 0)) {
-      updatedAt = Date.now();
-      const hist = Array.isArray(j.history) ? j.history : [];
-      fs.writeFileSync(REMINDER_FILE, JSON.stringify({ text, updatedAt, history: hist }), 'utf8');
-    }
-    if (!Number.isFinite(updatedAt)) updatedAt = 0;
-    let history = [];
-    if (Array.isArray(j.history)) {
-      history = j.history
-        .filter((h) => h && typeof h.text === 'string' && Number.isFinite(Number(h.updatedAt)))
-        .map((h) => ({ text: h.text, updatedAt: Number(h.updatedAt) }));
-    }
-    return { text, updatedAt, history };
-  } catch {
-    return { text: '', updatedAt: 0, history: [] };
-  }
-}
-
-function writeReminderToDisk(text) {
-  const prev = readReminderFromDisk();
-  const history = Array.isArray(prev.history) ? [...prev.history] : [];
-  const newText = String(text ?? '');
-  if (prev.text && prev.text.trim() && prev.text !== newText && prev.updatedAt > 0) {
-    history.unshift({ text: prev.text, updatedAt: prev.updatedAt });
-  }
-  while (history.length > 50) history.pop();
-  const updatedAt = Date.now();
-  const payload = { text: newText, updatedAt, history };
-  fs.writeFileSync(REMINDER_FILE, JSON.stringify(payload), 'utf8');
-  return payload;
 }
 
 const app = express();
@@ -186,7 +152,16 @@ if (RUN_BOT) {
 app.use(express.json());
 
 // Віддавати статичні файли з папки web (вона в тому ж корені, що й index.js)
-app.use(express.static(path.join(__dirname, 'web')));
+app.use(
+  express.static(path.join(__dirname, 'web'), {
+    maxAge: 0,
+    setHeaders: (res, filepath) => {
+      if (/\.(html|js|css)$/i.test(filepath)) {
+        res.setHeader('Cache-Control', 'no-store');
+      }
+    },
+  }),
+);
 
 // Підрахунок відкриття додатку: викликається з main.js після завантаження (надійніше за GET / у Web App)
 // Cron до /api/health не виконує JS — у лічильник заходів не потрапляє
@@ -247,31 +222,41 @@ app.get('/api/zoom-link', (req, res) => {
 const REMINDER_PUBLIC_TTL_MS = 24 * 60 * 60 * 1000;
 
 // Текст нагадування + історія версій (для всіх; текст приховується після 24 год, історія лишається)
-app.get('/api/reminder', (req, res) => {
+app.get('/api/reminder', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  const r = readReminderFromDisk();
-  const text = typeof r.text === 'string' ? r.text : '';
-  const ts = Number(r.updatedAt);
-  const history = Array.isArray(r.history) ? r.history : [];
-  const hasText = text.trim().length > 0;
-  if (!hasText || !Number.isFinite(ts) || ts <= 0) {
-    return res.json({ text: '', updatedAt: Number.isFinite(ts) ? ts : 0, history });
+  try {
+    const r = await readReminder();
+    const text = typeof r.text === 'string' ? r.text : '';
+    const ts = Number(r.updatedAt);
+    const history = Array.isArray(r.history) ? r.history : [];
+    const hasText = text.trim().length > 0;
+    if (!hasText || !Number.isFinite(ts) || ts <= 0) {
+      return res.json({ text: '', updatedAt: Number.isFinite(ts) ? ts : 0, history });
+    }
+    if (Date.now() - ts > REMINDER_PUBLIC_TTL_MS) {
+      return res.json({ text: '', updatedAt: ts, history });
+    }
+    res.json({ text, updatedAt: ts, history });
+  } catch (err) {
+    console.error('reminder read:', err);
+    res.status(500).json({ error: 'Не вдалося зчитати нагадування' });
   }
-  if (Date.now() - ts > REMINDER_PUBLIC_TTL_MS) {
-    return res.json({ text: '', updatedAt: ts, history });
-  }
-  res.json({ text, updatedAt: ts, history });
 });
 
 // Повне нагадування + історія (лише адмін)
-app.get('/api/admin/reminder', requireAdmin, (req, res) => {
+app.get('/api/admin/reminder', requireAdmin, async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  const r = readReminderFromDisk();
-  res.json({
-    text: r.text,
-    updatedAt: r.updatedAt,
-    history: Array.isArray(r.history) ? r.history : [],
-  });
+  try {
+    const r = await readReminder();
+    res.json({
+      text: r.text,
+      updatedAt: r.updatedAt,
+      history: Array.isArray(r.history) ? r.history : [],
+    });
+  } catch (err) {
+    console.error('admin reminder read:', err);
+    res.status(500).json({ error: 'Не вдалося зчитати нагадування' });
+  }
 });
 
 // Дні народження (читається з web/birthdays.json)
@@ -284,7 +269,7 @@ app.get('/api/birthdays', (req, res) => {
 
 // Middleware для простої перевірки пароля
 function requireAdmin(req, res, next) {
-  const raw = req.headers['x-admin-password'] ?? req.body?.password;
+  const raw = req.headers['x-admin-password'] ?? req.body?.password ?? req.query?.password;
   const password = typeof raw === 'string' ? raw.trim() : raw;
   const expected = String(ADMIN_PASSWORD ?? '').trim();
   if (!password || password !== expected) {
@@ -353,7 +338,7 @@ app.post('/api/admin/schedule/restore', requireAdmin, (req, res) => {
 });
 
 // Текст нагадування (адмін)
-app.put('/api/admin/reminder', requireAdmin, (req, res) => {
+app.put('/api/admin/reminder', requireAdmin, async (req, res) => {
   const raw = req.body?.text;
   if (typeof raw !== 'string') {
     return res.status(400).json({ error: 'Потрібне поле text (рядок)' });
@@ -361,9 +346,54 @@ app.put('/api/admin/reminder', requireAdmin, (req, res) => {
   if (raw.length > 4000) {
     return res.status(400).json({ error: 'Текст не довший за 4000 символів' });
   }
-  const payload = writeReminderToDisk(raw);
   res.set('Cache-Control', 'no-store');
-  res.json({ ok: true, ...payload });
+  try {
+    const payload = await writeReminder(raw);
+    res.json({ ok: true, ...payload });
+  } catch (err) {
+    console.error('reminder write:', err);
+    res.status(500).json({ error: 'Не вдалося зберегти нагадування' });
+  }
+});
+
+/** Видалення: action = current | history | all | history_item (тоді ще index) */
+app.post('/api/admin/reminder/delete', requireAdmin, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const action = String(req.body?.action || '').toLowerCase().replace(/-/g, '_');
+    if (action === 'current' || action === 'history' || action === 'all') {
+      const payload = await deleteReminderScope(action);
+      return res.json({
+        ok: true,
+        text: payload.text,
+        updatedAt: payload.updatedAt,
+        history: payload.history,
+      });
+    }
+    if (action === 'history_item') {
+      const index = parseInt(req.body?.index, 10);
+      if (!Number.isFinite(index)) {
+        return res.status(400).json({ error: 'Потрібне поле index (число)' });
+      }
+      const payload = await deleteReminderHistoryItem(index);
+      return res.json({
+        ok: true,
+        text: payload.text,
+        updatedAt: payload.updatedAt,
+        history: payload.history,
+      });
+    }
+    return res.status(400).json({
+      error: 'Потрібне action: current, history, all або history_item з index',
+    });
+  } catch (err) {
+    const msg = err && err.message ? String(err.message) : String(err);
+    if (msg.includes('Некоректний')) {
+      return res.status(400).json({ error: msg });
+    }
+    console.error('reminder delete:', err);
+    return res.status(500).json({ error: 'Не вдалося видалити' });
+  }
 });
 
 // Дні народження: повна заміна списку (додавання / видалення з клієнта)
@@ -392,26 +422,11 @@ app.put('/api/admin/birthdays', requireAdmin, (req, res) => {
 app.get('/api/admin/attendance', requireAdmin, (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
-    const data = readJournalRows();
+    const data = readJournalRows(req.query.sheet);
     res.json({ ok: true, ...data });
   } catch (err) {
     console.error('attendance read:', err);
     res.status(500).json({ error: 'Не вдалося прочитати журнал' });
-  }
-});
-
-app.post('/api/admin/attendance/row', requireAdmin, (req, res) => {
-  res.set('Cache-Control', 'no-store');
-  try {
-    const data = appendJournalRow(req.body || {});
-    res.json({ ok: true, ...data });
-  } catch (err) {
-    const msg = err && err.message ? String(err.message) : String(err);
-    if (msg.includes('Потрібні')) {
-      return res.status(400).json({ error: msg });
-    }
-    console.error('attendance append:', err);
-    res.status(500).json({ error: 'Не вдалося зберегти запис' });
   }
 });
 
@@ -461,7 +476,7 @@ app.get('/api/admin/attendance/day', requireAdmin, (req, res) => {
     if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
       return res.status(400).json({ error: 'Потрібна дата YYYY-MM-DD' });
     }
-    const data = getMatrixDayData(iso);
+    const data = getMatrixDayData(iso, req.query.sheet);
     res.json({ ok: true, ...data });
   } catch (err) {
     const msg = err && err.message ? String(err.message) : String(err);
@@ -473,11 +488,11 @@ app.get('/api/admin/attendance/day', requireAdmin, (req, res) => {
   }
 });
 
-/** Відмітити «п»/«н» у клітинці матриці журналу */
-app.post('/api/admin/attendance/set', requireAdmin, (req, res) => {
+/** Зберегти пакет відміток «п/н» (лист + дата + обрана колонка) */
+app.post('/api/admin/attendance/save', requireAdmin, async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
-    const data = writeMatrixAttendance(req.body || {});
+    const data = await writeMatrixAttendanceBatch(req.body || {});
     res.json({ ok: true, ...data });
   } catch (err) {
     const msg = err && err.message ? String(err.message) : String(err);
@@ -490,7 +505,7 @@ app.post('/api/admin/attendance/set', requireAdmin, (req, res) => {
     ) {
       return res.status(400).json({ error: msg });
     }
-    console.error('attendance set:', err);
+    console.error('attendance save:', err);
     res.status(500).json({ error: 'Не вдалося зберегти' });
   }
 });
@@ -498,6 +513,11 @@ app.post('/api/admin/attendance/set', requireAdmin, (req, res) => {
 // --------- Старт сервера ---------
 app.listen(PORT, async () => {
   console.log(`Web-сервер на порту ${PORT}`);
+  console.log(
+    isSupabaseReminderEnabled()
+      ? '«Важливо»: Supabase'
+      : '«Важливо»: файл reminder.json (локально або DATA_DIR)',
+  );
   if (!RUN_BOT) {
     console.log('Бот не запущено (BOT_TOKEN не заданий). Тільки веб-додаток і API. Бот окремо в student-bot-telegram.');
   } else if (USE_WEBHOOK) {
