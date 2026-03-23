@@ -2652,6 +2652,54 @@ body[data-bg-mode="light"] .birthdays-list {
   word-break: break-word;
 }
 
+/* Розклад: лише колір тексту (фон/рамки карток — як у .weather-search-card / .btn-quick) */
+.schedule-view .app-title {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.schedule-view .app-subtitle {
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.schedule-view .schedule-section__title {
+  color: rgba(203, 213, 225, 0.72);
+}
+
+.schedule-view .schedule-date-picker-trigger .weather-search-card__title {
+  color: #ffffff;
+}
+
+.schedule-view .schedule-date-picker-trigger .weather-search-card__meta {
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.schedule-view .schedule-date-panel .btn-quick.schedule-date-panel__btn {
+  color: #ffffff;
+}
+
+body[data-bg-mode='light'] .schedule-view .app-title {
+  color: var(--text);
+  text-shadow: none;
+}
+
+body[data-bg-mode='light'] .schedule-view .app-subtitle {
+  color: var(--text-muted);
+}
+
+body[data-bg-mode='light'] .schedule-view .schedule-section__title {
+  color: var(--text-muted);
+}
+
+body[data-bg-mode='light'] .schedule-view .schedule-date-picker-trigger .weather-search-card__title,
+body[data-bg-mode='light'] .schedule-view .schedule-date-panel .btn-quick.schedule-date-panel__btn {
+  color: var(--text);
+}
+
+body[data-bg-mode='light'] .schedule-view .schedule-date-picker-trigger .weather-search-card__meta {
+  color: var(--text-muted);
+}
+
 /* === Розклад: секції сторінки === */
 .schedule-page-section {
   margin-bottom: 22px;
@@ -2677,30 +2725,22 @@ body[data-bg-mode="light"] .birthdays-list {
   color: var(--text-muted);
 }
 
-/* Панель вибору дати (скло, як картки пар) */
+/* Панель вибору дати — без зовнішньої скляної картки (кнопка календаря й «Сьогодні/Завтра» лишаються) */
 .schedule-date-panel {
-  border-radius: var(--radius);
-  border: 1px solid var(--border-light);
-  background: var(--bg-card);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--shadow-glass);
-  overflow: hidden;
+  border: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  overflow: visible;
+  border-radius: 0;
 }
 
 .schedule-date-panel__body {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px 18px;
-}
-
-.schedule-date-panel__label {
-  display: block;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 0.02em;
+  padding: 0 2px;
 }
 
 .schedule-date-panel__quick {
@@ -2712,8 +2752,6 @@ body[data-bg-mode="light"] .birthdays-list {
 .schedule-date-panel__btn {
   flex: 1;
   min-width: 0;
-  min-height: 48px;
-  padding: 12px 14px;
 }
 
 /* Кнопка вибору дати — як картка пошуку погоди */
@@ -3007,10 +3045,36 @@ body[data-bg-mode='light'] .schedule-date-picker__day:not(.schedule-date-picker_
   transition: background 0.2s, transform 0.1s, border-color 0.2s;
 }
 
-.schedule-date-panel__btn {
-  background: rgba(0, 0, 0, 0.18);
+/* «Сьогодні / Завтра» — той самий «скляний» стиль, що й кнопка вибору дати (.weather-search-card) */
+.schedule-date-panel .btn-quick.schedule-date-panel__btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  font-weight: 700;
+  padding: 12px 14px;
+  min-height: 52px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.12s ease;
+}
+
+body[data-bg-mode='light'] .schedule-date-panel .btn-quick.schedule-date-panel__btn {
+  background: var(--bg-card);
+}
+
+.schedule-date-panel .btn-quick.schedule-date-panel__btn:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: var(--bg-card);
+}
+
+body[data-bg-mode='light'] .schedule-date-panel .btn-quick.schedule-date-panel__btn:hover {
+  border-color: rgba(0, 0, 0, 0.12);
 }
 
 /* Без scale при тапі — інакше екран «дьоргається» разом із зміною висоти списку */
@@ -3024,18 +3088,6 @@ body[data-bg-mode='light'] .schedule-date-picker__day:not(.schedule-date-picker_
 
 .btn-quick:hover {
   background: var(--bg-card-hover);
-}
-
-.schedule-date-panel .btn-quick:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-body[data-bg-mode='light'] .schedule-date-panel .btn-quick {
-  background: rgba(255, 255, 255, 0.35);
-}
-
-body[data-bg-mode='light'] .schedule-date-panel .btn-quick:hover {
-  background: rgba(255, 255, 255, 0.5);
 }
 
 /* === Schedule list === */
@@ -4185,12 +4237,6 @@ body[data-bg-mode="light"] .lesson-card .lesson-meta {
 
 body[data-bg-mode="light"] .lesson-card .lesson-time {
   font-weight: 700;
-}
-
-body[data-bg-mode="light"] .schedule-date-panel {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: var(--shadow-glass), var(--glass-edge);
 }
 
 body[data-bg-mode="light"] .date-input,
