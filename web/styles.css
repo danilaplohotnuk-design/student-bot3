@@ -320,17 +320,18 @@ body.admin-mode .app-shell {
 .admin-nav-dock {
   position: fixed;
   z-index: 300;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
   bottom: 0;
   width: 100%;
-  max-width: 480px;
+  max-width: none;
   box-sizing: border-box;
   display: flex;
   flex-direction: row;
   align-items: stretch;
   gap: 6px;
-  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  padding: 8px max(8px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-right));
   background: rgba(15, 19, 32, 0.88);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
@@ -415,17 +416,18 @@ body:not(.admin-mode) .app-shell {
 .user-nav-dock {
   position: fixed;
   z-index: 300;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
   bottom: 0;
   width: 100%;
-  max-width: 480px;
+  max-width: none;
   box-sizing: border-box;
   display: flex;
   flex-direction: row;
   align-items: stretch;
   gap: 4px;
-  padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+  padding: 8px max(6px, env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom))
+    max(6px, env(safe-area-inset-right));
   background: rgba(15, 19, 32, 0.88);
   backdrop-filter: blur(var(--glass-blur-strong));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong));
@@ -2658,16 +2660,13 @@ body[data-bg-mode="light"] .birthdays-list {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-.schedule-view .app-subtitle {
-  color: rgba(226, 232, 240, 0.85);
-}
-
 .schedule-view .schedule-section__title {
   color: rgba(203, 213, 225, 0.72);
 }
 
+/* Рядок дати в панелі — колір часу пар (.lesson-time) */
 .schedule-view .schedule-date-picker-trigger .weather-search-card__title {
-  color: #ffffff;
+  color: var(--time);
 }
 
 .schedule-view .schedule-date-picker-trigger .weather-search-card__meta {
@@ -2683,15 +2682,14 @@ body[data-bg-mode='light'] .schedule-view .app-title {
   text-shadow: none;
 }
 
-body[data-bg-mode='light'] .schedule-view .app-subtitle {
-  color: var(--text-muted);
-}
-
 body[data-bg-mode='light'] .schedule-view .schedule-section__title {
   color: var(--text-muted);
 }
 
-body[data-bg-mode='light'] .schedule-view .schedule-date-picker-trigger .weather-search-card__title,
+body[data-bg-mode='light'] .schedule-view .schedule-date-picker-trigger .weather-search-card__title {
+  color: var(--time);
+}
+
 body[data-bg-mode='light'] .schedule-view .schedule-date-panel .btn-quick.schedule-date-panel__btn {
   color: var(--text);
 }
@@ -2997,14 +2995,6 @@ body[data-bg-mode='light'] .schedule-date-picker__footer-btn {
 
 body[data-bg-mode='light'] .schedule-date-picker__day:not(.schedule-date-picker__day--selected) {
   background: rgba(255, 255, 255, 0.4);
-}
-
-.date-label {
-  display: block;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  margin-bottom: 0;
 }
 
 /* Загальні стилі date-input (інші екрани, якщо колись знадобляться) */

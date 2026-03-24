@@ -186,7 +186,6 @@ function emptyDayScheduleMessage(dateStr) {
 }
 
 const dateInput = document.getElementById('date-input');
-const dateLabel = document.getElementById('date-label');
 const todayBtn = document.getElementById('today-btn');
 const tomorrowBtn = document.getElementById('tomorrow-btn');
 const scheduleContainer = document.getElementById('schedule');
@@ -1453,45 +1452,7 @@ const TIME_SLOTS = [
   { label: '14:10–15:30', startTime: '14:10', endTime: '15:30' },
 ];
 
-/** Дні тижня — іменний відмінок (Intl для uk часто дає форму з прийменником / не іменний). */
-const UK_WEEKDAY_NOMINATIVE = [
-  'неділя',
-  'понеділок',
-  'вівторок',
-  'середа',
-  'четвер',
-  "п'ятниця",
-  'субота',
-];
-
-/** Місяці — родовий відмінок для «24 березня». */
-const UK_MONTH_GENITIVE = [
-  'січня',
-  'лютого',
-  'березня',
-  'квітня',
-  'травня',
-  'червня',
-  'липня',
-  'серпня',
-  'вересня',
-  'жовтня',
-  'листопада',
-  'грудня',
-];
-
-/** Підзаголовок під «Розклад» — завжди реальна сьогоднішня дата пристрою (не дата з календаря розкладу). */
-function setHeaderTodayDateLabel() {
-  const d = new Date();
-  const weekday = UK_WEEKDAY_NOMINATIVE[d.getDay()];
-  const day = d.getDate();
-  const month = UK_MONTH_GENITIVE[d.getMonth()];
-  const year = d.getFullYear();
-  dateLabel.textContent = `${weekday}, ${day} ${month} ${year} р.`;
-}
-
 async function loadSchedule(date) {
-  setHeaderTodayDateLabel();
   const listEl = scheduleContainer;
   const prevH = listEl ? listEl.offsetHeight : 0;
   if (listEl && prevH > 48) {
@@ -1513,7 +1474,6 @@ async function loadSchedule(date) {
   } catch (err) {
     scheduleContainer.innerHTML = '<p class="state-message error">Не вдалося завантажити розклад</p>';
     console.error(err);
-    setHeaderTodayDateLabel();
   } finally {
     try {
       requestAnimationFrame(() => {
@@ -1832,7 +1792,6 @@ function appendLessonCard(date, lesson) {
 }
 
 function renderSchedule(date, lessons, exams) {
-  setHeaderTodayDateLabel();
   currentScheduleDate = date || '';
   scheduleContainer.innerHTML = '';
   scheduleCardEnterIndex = 0;
@@ -4754,7 +4713,6 @@ applyBackground(getStoredBackground());
 const initialDate = todayISO();
 dateInput.value = initialDate;
 updateScheduleDateDisplay();
-setHeaderTodayDateLabel();
 loadSchedule(initialDate);
 fetchReminderFromServer();
 loadBirthdaysJson().then(() => {
@@ -4763,7 +4721,6 @@ loadBirthdaysJson().then(() => {
 });
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    setHeaderTodayDateLabel();
     updateBirthdayHomeNotice();
     if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
     if (adminMode) loadAdminVisitStatsBar();
