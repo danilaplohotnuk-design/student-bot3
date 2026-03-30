@@ -102,6 +102,17 @@ function initTbaWatermarkViewportStable() {
     document.documentElement.clientHeight || 0,
   );
 
+  /** Один apply() на кадр — менше роботи при серії scroll/resize на visualViewport */
+  let wmFrameQueued = false;
+  function scheduleApply() {
+    if (wmFrameQueued) return;
+    wmFrameQueued = true;
+    requestAnimationFrame(() => {
+      wmFrameQueued = false;
+      apply();
+    });
+  }
+
   function apply() {
     const inner = window.innerHeight || 0;
     const client = document.documentElement.clientHeight || 0;
@@ -125,7 +136,7 @@ function initTbaWatermarkViewportStable() {
   }
 
   function onVV() {
-    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(apply);
+    if (typeof requestAnimationFrame === 'function') scheduleApply();
     else apply();
   }
 
@@ -1452,7 +1463,21 @@ const TIME_SLOTS = [
   { label: '14:10–15:30', startTime: '14:10', endTime: '15:30' },
 ];
 
-async function loadSchedule(date) {
+/** Кеш відповіді GET /api/schedule (зменшує повторні запити при перемиканні дат) */
+const SCHEDULE_FETCH_CACHE_MS = 45_000;
+const scheduleResponseCache = new Map();
+const scheduleFetchInFlight = new Map();
+/** Захист від гонки: старий fetch не перезаписує UI після force-оновлення */
+const scheduleLoadGeneration = new Map();
+
+async function loadSchedule(date, opts = {}) {
+  const force = opts.force === true;
+  if (force) {
+    scheduleResponseCache.delete(date);
+    scheduleFetchInFlight.delete(date);
+  }
+  const gen = (scheduleLoadGeneration.get(date) || 0) + 1;
+  scheduleLoadGeneration.set(date, gen);
   const listEl = scheduleContainer;
   const prevH = listEl ? listEl.offsetHeight : 0;
   if (listEl && prevH > 48) {
@@ -1460,20 +1485,78 @@ async function loadSchedule(date) {
       listEl.style.minHeight = `${prevH}px`;
     } catch (_) {}
   }
+
+  if (!force) {
+    const cached = scheduleResponseCache.get(date);
+    if (cached && Date.now() - cached.at < SCHEDULE_FETCH_CACHE_MS) {
+      if (scheduleLoadGeneration.get(date) === gen) {
+        renderSchedule(cached.data.date, cached.data.lessons || [], cached.data.exams || []);
+      }
+      try {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (listEl) listEl.style.minHeight = '';
+          });
+        });
+      } catch (_) {}
+      return;
+    }
+    const pending = scheduleFetchInFlight.get(date);
+    if (pending) {
+      try {
+        const data = await pending;
+        if (scheduleLoadGeneration.get(date) === gen) {
+          scheduleResponseCache.set(date, { at: Date.now(), data });
+          renderSchedule(data.date, data.lessons || [], data.exams || []);
+        }
+      } catch (err) {
+        if (scheduleLoadGeneration.get(date) === gen) {
+          scheduleContainer.innerHTML = '<p class="state-message error">Не вдалося завантажити розклад</p>';
+          console.error(err);
+        }
+      } finally {
+        try {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (listEl) listEl.style.minHeight = '';
+            });
+          });
+        } catch (_) {}
+      }
+      return;
+    }
+  }
+
   listEl.innerHTML = `
     <div class="state-message">
       Завантаження
       <div class="loading-dots"><span></span><span></span><span></span></div>
     </div>
   `;
-  try {
+
+  const run = (async () => {
     const res = await fetch(apiUrl(`/api/schedule?date=${encodeURIComponent(date)}`));
     if (!res.ok) throw new Error('Помилка завантаження');
-    const data = await res.json();
+    return res.json();
+  })();
+
+  if (!force) {
+    scheduleFetchInFlight.set(date, run);
+    run.finally(() => {
+      if (scheduleFetchInFlight.get(date) === run) scheduleFetchInFlight.delete(date);
+    });
+  }
+
+  try {
+    const data = await run;
+    if (scheduleLoadGeneration.get(date) !== gen) return;
+    scheduleResponseCache.set(date, { at: Date.now(), data });
     renderSchedule(data.date, data.lessons || [], data.exams || []);
   } catch (err) {
-    scheduleContainer.innerHTML = '<p class="state-message error">Не вдалося завантажити розклад</p>';
-    console.error(err);
+    if (scheduleLoadGeneration.get(date) === gen) {
+      scheduleContainer.innerHTML = '<p class="state-message error">Не вдалося завантажити розклад</p>';
+      console.error(err);
+    }
   } finally {
     try {
       requestAnimationFrame(() => {
@@ -2029,7 +2112,7 @@ function showStudentImportantPage() {
   syncUserNavDockActive();
   // Оновлення з сервера в фоні — без блокування перемикання
   const beforePublic = snapshotReminderPublicState();
-  fetchReminderFromServer().then(() => {
+  fetchReminderFromServer({ force: true }).then(() => {
     if (!isStudentImportantPageVisible()) return;
     // Якщо дані ті самі — не перерендерюємо (інакше анімація «Важливо» грає двічі)
     if (snapshotReminderPublicState() === beforePublic) {
@@ -3089,7 +3172,7 @@ async function examsAdminSubmitAdd() {
       timeEl.value = '';
       if (topicEl) topicEl.value = '';
       if (zoomEl) zoomEl.value = '';
-      if (currentScheduleDate === examFields.date) loadSchedule(currentScheduleDate);
+      if (currentScheduleDate === examFields.date) loadSchedule(currentScheduleDate, { force: true });
       await refreshExamsAdminList();
     } else {
       msgEl.textContent =
@@ -3873,19 +3956,38 @@ function closeReminderPopover() {
   }, 280);
 }
 
-async function fetchReminderFromServer() {
+let reminderFetchPromise = null;
+
+async function fetchReminderFromServer(opts = {}) {
+  const force = opts.force === true;
+  if (reminderFetchPromise && !force) {
+    return reminderFetchPromise;
+  }
+  if (reminderFetchPromise && force) {
+    try {
+      await reminderFetchPromise;
+    } catch (_) {}
+  }
+  const run = (async () => {
+    try {
+      const res = await fetch(apiUrl('/api/reminder'));
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data.text === 'string') reminderText = data.text;
+        const ts = Number(data.updatedAt);
+        reminderUpdatedAt = Number.isFinite(ts) && ts > 0 ? ts : 0;
+        reminderPublicHistory = Array.isArray(data.history) ? data.history : [];
+      }
+    } catch (_) {}
+    reminderFetchSettled = true;
+    syncReminderTrigger();
+  })();
+  reminderFetchPromise = run;
   try {
-    const res = await fetch(apiUrl('/api/reminder'));
-    if (res.ok) {
-      const data = await res.json();
-      if (typeof data.text === 'string') reminderText = data.text;
-      const ts = Number(data.updatedAt);
-      reminderUpdatedAt = Number.isFinite(ts) && ts > 0 ? ts : 0;
-      reminderPublicHistory = Array.isArray(data.history) ? data.history : [];
-    }
-  } catch (_) {}
-  reminderFetchSettled = true;
-  syncReminderTrigger();
+    await run;
+  } finally {
+    if (reminderFetchPromise === run) reminderFetchPromise = null;
+  }
 }
 
 function syncReminderTrigger() {
@@ -3992,7 +4094,9 @@ function syncAdminChrome() {
   }
   if (adminMode) {
     loadAdminVisitStatsBar();
-    adminVisitStatsIntervalId = setInterval(loadAdminVisitStatsBar, 90_000);
+    if (typeof document === 'undefined' || !document.hidden) {
+      adminVisitStatsIntervalId = setInterval(loadAdminVisitStatsBar, 90_000);
+    }
   } else {
     const w = document.getElementById('admin-visit-stats');
     if (w) w.hidden = true;
@@ -4028,9 +4132,9 @@ function exitAdminMode() {
   closeModals();
   closeAllLessonSwipes();
   syncAdminChrome();
-  fetchReminderFromServer();
+  fetchReminderFromServer({ force: true });
   showToast('Режим редагування вимкнено');
-  if (currentScheduleDate) loadSchedule(currentScheduleDate);
+  if (currentScheduleDate) loadSchedule(currentScheduleDate, { force: true });
 }
 
 function attachSwipeToLessonFront(front, maxW) {
@@ -4166,8 +4270,8 @@ function openPasswordModal(lessonOrNull, options = {}) {
           closeAllLessonSwipes();
           navigateUserToSchedule();
           syncAdminChrome();
-          fetchReminderFromServer();
-          if (currentScheduleDate) loadSchedule(currentScheduleDate);
+          fetchReminderFromServer({ force: true });
+          if (currentScheduleDate) loadSchedule(currentScheduleDate, { force: true });
           return;
         }
       } else if (res.status === 401) {
@@ -4215,9 +4319,9 @@ function confirmDeletePair(lesson) {
     return;
   }
   deletePair(lesson).then((ok) => {
-    if (ok) {
+      if (ok) {
       showToast('Пару видалено');
-      if (currentScheduleDate) loadSchedule(currentScheduleDate);
+      if (currentScheduleDate) loadSchedule(currentScheduleDate, { force: true });
     } else {
       showToast('Помилка видалення');
       closeAllLessonSwipes();
@@ -4250,7 +4354,7 @@ function confirmDeleteExam(exam) {
   deleteExamById(exam.id).then((ok) => {
     if (ok) {
       showToast('Екзамен видалено');
-      if (currentScheduleDate) loadSchedule(currentScheduleDate);
+      if (currentScheduleDate) loadSchedule(currentScheduleDate, { force: true });
       if (isExamsAdminPageVisible()) refreshExamsAdminList();
     } else {
       showToast('Помилка видалення');
@@ -4367,7 +4471,7 @@ async function openExamFormModal(examOrNull) {
         closeModals();
         closeAllLessonSwipes();
         showToast(isEdit ? 'Екзамен оновлено' : 'Екзамен додано');
-        if (currentScheduleDate) loadSchedule(currentScheduleDate);
+        if (currentScheduleDate) loadSchedule(currentScheduleDate, { force: true });
         if (isExamsAdminPageVisible()) refreshExamsAdminList();
       } else {
         errorEl.textContent = data.error || 'Помилка збереження';
@@ -4613,7 +4717,7 @@ async function openAddPairFormModal(lessonOrNull) {
         closeModals();
         closeAllLessonSwipes();
         showToast(existingAtTime ? 'Пару оновлено' : 'Пару додано');
-        loadSchedule(currentScheduleDate);
+        loadSchedule(currentScheduleDate, { force: true });
       } else {
         errorEl.textContent = data.error || 'Помилка збереження';
         errorEl.style.display = 'block';
@@ -4723,7 +4827,15 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     updateBirthdayHomeNotice();
     if (isBirthdaysPageVisible()) renderBirthdaysPageContent();
-    if (adminMode) loadAdminVisitStatsBar();
+    if (adminMode) {
+      loadAdminVisitStatsBar();
+      if (!adminVisitStatsIntervalId) {
+        adminVisitStatsIntervalId = setInterval(loadAdminVisitStatsBar, 90_000);
+      }
+    }
+  } else if (adminVisitStatsIntervalId) {
+    clearInterval(adminVisitStatsIntervalId);
+    adminVisitStatsIntervalId = null;
   }
 });
 

@@ -362,12 +362,6 @@ export function findDateColumns(ws, isoDate) {
   return findDateColumnsInner(ws, isoDate, true);
 }
 
-/** Чи колонка входить у список пар для цієї дати (у т.ч. колонка лише з «Пн»/«Вт» без числа) */
-function columnBelongsToDate(ws, colIndex, isoDate) {
-  const cols = findDateColumns(ws, isoDate);
-  return cols.some((x) => x.columnIndex === colIndex);
-}
-
 function findStudentRowByName(ws, name) {
   const target = normKey(name);
   const ref = ws['!ref'];
@@ -436,7 +430,8 @@ export async function writeMatrixAttendanceBatch({ dateIso, columnIndex, sheetNa
   const ws = wb.Sheets[resolvedSheetName];
   if (!ws) throw new Error('Аркуш не знайдено');
 
-  if (!columnBelongsToDate(ws, col, dIso)) {
+  const colsForDay = findDateColumns(ws, dIso);
+  if (!colsForDay.some((x) => x.columnIndex === col)) {
     throw new Error('Дата в обраній колонці не збігається з обраною датою');
   }
 

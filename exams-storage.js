@@ -37,11 +37,21 @@ function getExamsFilePath() {
   return path.join(__dirname, 'exams.json');
 }
 
+/** Кеш повного списку за mtime файла (менше парсингу JSON при кожному GET) */
+let examsFileMtimeCache = { mtimeMs: NaN, list: null };
+
 function readAllExamsFromDisk() {
   try {
-    const raw = fs.readFileSync(getExamsFilePath(), 'utf8');
+    const file = getExamsFilePath();
+    const st = fs.statSync(file);
+    if (examsFileMtimeCache.list && examsFileMtimeCache.mtimeMs === st.mtimeMs) {
+      return examsFileMtimeCache.list;
+    }
+    const raw = fs.readFileSync(file, 'utf8');
     const j = JSON.parse(raw);
-    return Array.isArray(j.exams) ? j.exams : [];
+    const list = Array.isArray(j.exams) ? j.exams : [];
+    examsFileMtimeCache = { mtimeMs: st.mtimeMs, list };
+    return list;
   } catch {
     return [];
   }
@@ -51,6 +61,21 @@ function writeAllExamsToDisk(exams) {
   const file = getExamsFilePath();
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify({ exams }, null, 2)}\n`, 'utf8');
+  try {
+    const st = fs.statSync(file);
+    examsFileMtimeCache = { mtimeMs: st.mtimeMs, list: exams };
+  } catch {
+    examsFileMtimeCache = { mtimeMs: NaN, list: null };
+  }
+  examsByDateCache.clear();
+}
+
+/** Кеш результату getExamsByDate (зменшує запити до Supabase при частих відкриттях розкладу) */
+const examsByDateCache = new Map();
+const EXAMS_BY_DATE_TTL_MS = 60_000;
+
+function invalidateExamsByDateCache() {
+  examsByDateCache.clear();
 }
 
 function rowToExam(row) {
@@ -88,23 +113,34 @@ function normalizeExamPayload(body) {
 export async function getExamsByDate(date) {
   if (!DATE_RE.test(String(date))) return [];
 
+  const dKey = String(date);
+  const hit = examsByDateCache.get(dKey);
+  if (hit && Date.now() - hit.at < EXAMS_BY_DATE_TTL_MS) {
+    return hit.list;
+  }
+
+  let list;
+
   if (isSupabaseExamsEnabled()) {
     try {
       const supabase = getSupabase();
       if (!supabase) return [];
       const { data, error } = await supabase.from('schedule_exams').select('*').eq('exam_date', date);
       if (error) throw error;
-      const list = (data || []).map(rowToExam).filter(Boolean);
-      return list.sort((a, b) => String(a.timeText || '').localeCompare(String(b.timeText || ''), 'uk'));
+      list = (data || []).map(rowToExam).filter(Boolean);
+      list.sort((a, b) => String(a.timeText || '').localeCompare(String(b.timeText || ''), 'uk'));
     } catch (err) {
       console.error('exams Supabase read:', err);
       return [];
     }
+  } else {
+    list = readAllExamsFromDisk()
+      .filter((e) => e && e.date === date)
+      .sort((a, b) => String(a.timeText || '').localeCompare(String(b.timeText || ''), 'uk'));
   }
 
-  return readAllExamsFromDisk()
-    .filter((e) => e && e.date === date)
-    .sort((a, b) => String(a.timeText || '').localeCompare(String(b.timeText || ''), 'uk'));
+  examsByDateCache.set(dKey, { at: Date.now(), list });
+  return list;
 }
 
 export async function addExam(body) {
@@ -127,6 +163,7 @@ export async function addExam(body) {
         created_at: exam.createdAt,
       });
       if (error) throw error;
+      invalidateExamsByDateCache();
       return { ok: true, exam };
     } catch (err) {
       console.error('exams Supabase add:', err);
@@ -171,6 +208,7 @@ export async function updateExam(body) {
       if (error) throw error;
       const { data: row } = await supabase.from('schedule_exams').select('*').eq('id', id).maybeSingle();
       const full = row ? rowToExam(row) : null;
+      invalidateExamsByDateCache();
       if (full) return { ok: true, exam: full };
       return { ok: true, exam: { id, ...v.value, createdAt: 0 } };
     } catch (err) {
@@ -206,6 +244,7 @@ export async function deleteExam(id) {
       if (!existing) return { error: 'Екзамен не знайдено' };
       const { error } = await supabase.from('schedule_exams').delete().eq('id', sid);
       if (error) throw error;
+      invalidateExamsByDateCache();
       return { ok: true };
     } catch (err) {
       console.error('exams Supabase delete:', err);

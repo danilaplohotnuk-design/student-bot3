@@ -23,6 +23,14 @@ function getReminderFilePath() {
   return path.join(__dirname, 'reminder.json');
 }
 
+/** Короткий кеш readReminder — зменшує подвійні запити до Supabase при GET /api/reminder */
+let reminderReadCache = null;
+const REMINDER_READ_CACHE_MS = 45_000;
+
+function invalidateReminderReadCache() {
+  reminderReadCache = null;
+}
+
 let supabaseClient = null;
 function getSupabase() {
   if (supabaseClient) return supabaseClient;
@@ -227,13 +235,22 @@ async function deleteReminderHistoryItemSupabase(index) {
 /** --- Уніфікований API --- */
 
 export async function readReminder() {
-  if (isSupabaseReminderEnabled()) {
-    return readReminderFromSupabase();
+  const now = Date.now();
+  if (reminderReadCache && now - reminderReadCache.at < REMINDER_READ_CACHE_MS) {
+    return reminderReadCache.data;
   }
-  return readReminderFromDisk();
+  let data;
+  if (isSupabaseReminderEnabled()) {
+    data = await readReminderFromSupabase();
+  } else {
+    data = readReminderFromDisk();
+  }
+  reminderReadCache = { at: now, data };
+  return data;
 }
 
 export async function writeReminder(text) {
+  invalidateReminderReadCache();
   if (isSupabaseReminderEnabled()) {
     return writeReminderToSupabase(text);
   }
@@ -241,6 +258,7 @@ export async function writeReminder(text) {
 }
 
 export async function deleteReminderScope(scope) {
+  invalidateReminderReadCache();
   if (isSupabaseReminderEnabled()) {
     return deleteReminderScopeSupabase(scope);
   }
@@ -248,6 +266,7 @@ export async function deleteReminderScope(scope) {
 }
 
 export async function deleteReminderHistoryItem(index) {
+  invalidateReminderReadCache();
   if (isSupabaseReminderEnabled()) {
     return deleteReminderHistoryItemSupabase(index);
   }
